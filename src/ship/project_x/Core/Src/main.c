@@ -55,7 +55,7 @@ static void MX_SPI2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-app_main();
+void app_main();
 /* USER CODE END 0 */
 
 /**
