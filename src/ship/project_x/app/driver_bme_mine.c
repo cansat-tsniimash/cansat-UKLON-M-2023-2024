@@ -39,7 +39,7 @@ void bme_driver(struct bme280_dev *bme, struct bus *spi_bus){
 	bme->read = bme_read;
 	bme->write = bme_write;
 	bme->delay_us = bme_delay;
-	bme->intf_ptr = &spi_bus;
+	bme->intf_ptr = spi_bus;
 	bme->intf = BME280_SPI_INTF;
 	bme280_soft_reset(bme);
 	bme280_init(bme);
