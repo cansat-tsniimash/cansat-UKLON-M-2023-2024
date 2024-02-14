@@ -28,12 +28,12 @@ typedef enum
 	RADIO_PACKET2,
 } radio_t;
 
-typedef struct {
+typedef struct{
 	uint8_t flag;
 	uint16_t num;
 	uint32_t time;
 	uint16_t acc[3]; /* Данные акселерометра */
-	uint16_t gir[3];/* Данные  гироскопа*/
+	uint16_t gyr[3];/* Данные  гироскопа*/
 	uint16_t mag[3];/*Данные магнитометра*/
 	uint16_t crc;
 }packet_imu_t;
@@ -81,6 +81,16 @@ typedef struct {
 	int16_t temp; /*температура*/
 	uint16_t crc;
 }packet_GY25_t;
+
+typedef struct {
+	uint16_t flag;
+	uint16_t id;
+	uint32_t time;
+	uint32_t pres; /*давление*/
+	int16_t temp; /*температура*/
+	uint32_t accel[3];
+	uint16_t crc;
+}packet_t;
 
 void app_main(){
 	shift_reg_t sr_imu;
@@ -169,6 +179,7 @@ void app_main(){
 	ads1115_init(&ADS);
 
 	struct bme280_data bme_data;
+	packet_imu_t pack_imu;
 	float temp_lis, temp_lsm;
 	float mag[3];
 	float acc_g[3];
@@ -180,9 +191,15 @@ void app_main(){
 	while(1){
 		uint16_t ads_raw[3];
 		float ads_conv[3];
+
 		lux = photorezistor_get_lux(pht);
 		lisread(&lis, &temp_lis, &mag);
 		lsmread(&lsm, &temp_lsm, &acc_g, &gyro_dps);
+		for(int i = 0; i < 3; i++){
+			pack_imu.mag[i] = mag[i] * 1000;
+			pack_imu.acc[i] = acc_g[i] * 1000;
+			pack_imu.gyr[i] = gyro_dps[i] * 1000;
+		}
 		bme280_get_sensor_data(BME280_ALL, &bme_data, &bme);
 		if(HAL_GetTick() >= first + 750){
 			ds18b20_read_raw_temperature(&ds, &raw_t, &crc_ok);
