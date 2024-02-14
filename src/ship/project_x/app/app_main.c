@@ -15,6 +15,7 @@
 
 extern ADC_HandleTypeDef hadc1;
 extern SPI_HandleTypeDef hspi2;
+extern I2C_HandleTypeDef hi2c1;
 
 void app_main(){
 	shift_reg_t sr_imu;
@@ -58,6 +59,11 @@ void app_main(){
 	pht.resist = 2200;
 	pht.hadc = &hadc1;
 
+	ads1115_t ADS;
+	ADS.hi2c = &hi2c1;
+	ADS.ads1115_t = 0b1001000 << 1;
+	ads1115_init(&ADS);
+
 	struct bme280_data bme_data;
 	float temp_lis, temp_lsm;
 	float mag[3];
@@ -68,6 +74,8 @@ void app_main(){
 	uint32_t first = HAL_GetTick();
 	volatile float lux;
 	while(1){
+		uint16_t ads_raw[3];
+		float ads_conv[3];
 		lux = photorezistor_get_lux(pht);
 		lisread(&lis, &temp_lis, &mag);
 		lsmread(&lsm, &temp_lsm, &acc_g, &gyro_dps);
@@ -76,6 +84,13 @@ void app_main(){
 			ds18b20_read_raw_temperature(&ds, &raw_t, &crc_ok);
 			ds18b20_start_conversion(&ds);
 			first = HAL_GetTick();
+		}
+		for(int i = 0; i < 3; i++){
+			ads1115_write_mux(i+4, &ADS);
+			ads1115_req_single(&ADS);
+			HAL_Delay(1);
+			ads1115_read_single(&ADS, ads_raw[i]);
+			ads_conv[i] = ads1115_convert(&ADS, ads_raw[i]);
 		}
 	}
 }
