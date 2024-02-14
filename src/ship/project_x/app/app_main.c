@@ -26,6 +26,23 @@ void app_main(){
 	shift_reg_init(&sr_imu);
 	shift_reg_write_16(&sr_imu, 0xFFFF);
 
+	shift_reg_t sr_nrf;
+	sr_nrf.bus = &hspi2;
+	sr_nrf.latch_port = GPIOC;
+	sr_nrf.latch_pin = GPIO_PIN_4;
+	sr_nrf.oe_port = GPIOC;
+	sr_nrf.oe_pin = GPIO_PIN_5;
+	shift_reg_init(&sr_nrf);
+	shift_reg_write_8(&sr_nrf, 0xFF);
+
+	nrf24_spi_pins_sr_t spi_nrf24;
+	sr_nrf24.pos_CE = 0;
+	sr_nrf24.pos_CS = 1;
+	sr_nrf24.this = &sr_nrf;
+
+	nrf24_lower_api_config_t nrf24;
+
+
 	struct bus spi_bus;
 	spi_bus.sr_imu = &sr_imu;
 	spi_bus.hspi = &hspi2;
