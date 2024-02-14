@@ -12,6 +12,9 @@
 #include "LSM6DS3/DLSM.h"
 #include "1Wire_DS18B20/one_wire.h"
 #include "Photorezistor/photorezistor.h"
+#include "ADS1115/ADS1115.h"
+#include "nRF24L01_PL/nrf24_upper_api.h"
+#include "nRF24L01_PL/nrf24_lower_api_stm32.h"
 
 extern ADC_HandleTypeDef hadc1;
 extern SPI_HandleTypeDef hspi2;
@@ -26,6 +29,23 @@ void app_main(){
 	sr_imu.oe_pin = GPIO_PIN_13;
 	shift_reg_init(&sr_imu);
 	shift_reg_write_16(&sr_imu, 0xFFFF);
+
+	shift_reg_t sr_nrf;
+	sr_nrf.bus = &hspi2;
+	sr_nrf.latch_port = GPIOC;
+	sr_nrf.latch_pin = GPIO_PIN_4;
+	sr_nrf.oe_port = GPIOC;
+	sr_nrf.oe_pin = GPIO_PIN_5;
+	shift_reg_init(&sr_nrf);
+	shift_reg_write_8(&sr_nrf, 0xFF);
+
+	nrf24_spi_pins_sr_t spi_nrf24;
+	spi_nrf24.pos_CE = 0;
+	spi_nrf24.pos_CS = 1;
+	spi_nrf24.this = &sr_nrf;
+
+	nrf24_lower_api_config_t nrf24;
+
 
 	struct bus spi_bus;
 	spi_bus.sr_imu = &sr_imu;
@@ -61,7 +81,7 @@ void app_main(){
 
 	ads1115_t ADS;
 	ADS.hi2c = &hi2c1;
-	ADS.ads1115_t = 0b1001000 << 1;
+	ADS.DevAddress = 0b1001000 << 1;
 	ads1115_init(&ADS);
 
 	struct bme280_data bme_data;
