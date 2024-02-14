@@ -28,6 +28,60 @@ typedef enum
 	RADIO_PACKET2,
 } radio_t;
 
+typedef struct {
+	uint8_t flag;
+	uint16_t num;
+	uint32_t time;
+	uint16_t acc[3]; /* Данные акселерометра */
+	uint16_t gir[3];/* Данные  гироскопа*/
+	uint16_t mag[3];/*Данные магнитометра*/
+	uint16_t crc;
+}packet_imu_t;
+typedef struct {
+	uint8_t flag;
+	uint16_t num;
+	uint32_t time;
+	float lat;/*широта*/
+	float lon;/*долгота*/
+	float height;/*высота*/
+	uint8_t fix;
+	uint16_t DS_temp;
+	uint16_t crc;
+}packet_atgm_t;
+typedef struct {
+	uint8_t flag;
+	uint16_t num;
+	uint32_t time;
+	float lat;/*широта*/
+	float lon;/*долгота*/
+	float height;/*высота*/
+	uint8_t fix;
+	uint16_t crc;
+}packet_NEO6M_t;
+typedef struct {
+	uint8_t flag;
+	uint16_t num;
+	uint32_t time;
+	float CO;
+	float NO2;
+	float NH3;
+	uint32_t pres; /*давление*/
+	uint8_t hum; /*влажность*/
+	int16_t temp; /*температура*/
+	uint16_t crc;
+}packet_MICS_t;
+typedef struct {
+	uint8_t flag;
+	uint16_t num;
+	uint32_t time;
+	float roll;
+	float yaw;
+	float pitch;
+	uint32_t pres; /*давление*/
+	int16_t temp; /*температура*/
+	uint16_t crc;
+}packet_GY25_t;
+
 void app_main(){
 	shift_reg_t sr_imu;
 	sr_imu.bus = &hspi2;
