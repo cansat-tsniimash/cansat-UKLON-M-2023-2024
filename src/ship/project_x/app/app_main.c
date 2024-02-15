@@ -185,23 +185,30 @@ void app_main(){
 	struct bme280_data bme_data;
 	packet_imu_t pack_imu;
 	pack_imu.flag = 0xF1;
+	pack_imu.num = 0;
 	packet_t pack_org;
 	pack_org.flag = 0xA2;
 	packet_GY25_t pack_GY25;
 	pack_GY25.flag = 0xF3;
+	pack_GY25.num = 0;
 	packet_MICS_t pack_MICS;
 	pack_MICS.flag = 0xF4;
+	pack_MICS.num = 0;
 	packet_NEO6M_t pack_NEO6M;
 	pack_NEO6M.flag = 0xA5;
+	pack_NEO6M.num = 0;
 	packet_atgm_t pack_atgm;
 	pack_atgm.flag = 0xA6;
+	pack_atgm.num = 0;
+
+
 	uint16_t ads_raw[3];
 	float ads_conv[3];
 	float temp_lis, temp_lsm;
 	float mag[3];
 	float acc_g[3];
 	float gyro_dps[3];
-	uint16_t raw_t;
+	uint16_t raw_temp;
 	bool crc_ok;
 	uint32_t first = HAL_GetTick();
 	volatile float lux;
@@ -223,14 +230,31 @@ void app_main(){
 			pack_imu.mag[i] = mag[i] * 1000;
 			pack_imu.acc[i] = acc_g[i] * 1000;
 			pack_imu.gyr[i] = gyro_dps[i] * 1000;
+			pack_org.accel[i] = acc_g[i] * 1000;
 		}
 		bme280_get_sensor_data(BME280_ALL, &bme_data, &bme);
+		pack_GY25.temp = bme_data.temperature;
+		pack_GY25.pres = bme_data.pressure;
+		pack_org.temp = bme_data.temperature;
+		pack_org.pres = bme_data.pressure;
 		if(HAL_GetTick() >= first + 750)
 		{
-			ds18b20_read_raw_temperature(&ds, &raw_t, &crc_ok);
+			ds18b20_read_raw_temperature(&ds, &raw_temp, &crc_ok);
+			pack_atgm.DS_temp = raw_temp;
 			ds18b20_start_conversion(&ds);
 			first = HAL_GetTick();
 		}
+
+		for(int i = 0; i < 3; i++){
+			ads1115_write_mux(i+4, &ADS);
+			ads1115_req_single(&ADS);
+			HAL_Delay(1);
+			ads1115_read_single(&ADS, &ads_raw[i]);
+			ads_conv[i] = ads1115_convert(&ADS, ads_raw[i]);
+		}
+		pack_MICS.CO = ads_raw[0];
+		pack_MICS.NO2 = ads_raw[1];
+		pack_MICS.NH3 = ads_raw[2];
 
 
 		switch (state_now)
@@ -293,13 +317,7 @@ void app_main(){
 			break;
 		}
 
-		for(int i = 0; i < 3; i++){
-			ads1115_write_mux(i+4, &ADS);
-			ads1115_req_single(&ADS);
-			HAL_Delay(1);
-			ads1115_read_single(&ADS, &ads_raw[i]);
-			ads_conv[i] = ads1115_convert(&ADS, ads_raw[i]);
-		}
+
 	}
 }
 
