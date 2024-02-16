@@ -20,6 +20,14 @@ extern ADC_HandleTypeDef hadc1;
 extern SPI_HandleTypeDef hspi2;
 extern I2C_HandleTypeDef hi2c1;
 
+typedef enum
+{
+	RADIO_PACKET,
+	RADIO_WAIT,
+	RADIO_PACKET1,
+	RADIO_PACKET2,
+} radio_t;
+
 void app_main(){
 	shift_reg_t sr_imu;
 	sr_imu.bus = &hspi2;
@@ -43,8 +51,30 @@ void app_main(){
 	spi_nrf24.pos_CE = 0;
 	spi_nrf24.pos_CS = 1;
 	spi_nrf24.this = &sr_nrf;
-
 	nrf24_lower_api_config_t nrf24;
+	nrf24_spi_init_sr(&nrf24, &hspi2, &spi_nrf24);
+
+	nrf24_mode_power_down(&nrf24);
+
+	nrf24_rf_config_t nrf24_rf_config;
+	nrf24_rf_config.data_rate = NRF24_DATARATE_250_KBIT;
+	nrf24_rf_config.rf_channel = 95;
+	nrf24_rf_config.tx_power = NRF24_TXPOWER_MINUS_18_DBM;
+	nrf24_setup_rf(&nrf24, &nrf24_rf_config);
+
+	nrf24_protocol_config_t nrf24_protocol_config;
+	nrf24_protocol_config.address_width = NRF24_ADDRES_WIDTH_5_BYTES;
+	nrf24_protocol_config.auto_retransmit_count = 0;
+	nrf24_protocol_config.auto_retransmit_delay = 0;
+	nrf24_protocol_config.crc_size = NRF24_CRCSIZE_DISABLE;
+	nrf24_protocol_config.en_ack_payload = true;
+	nrf24_protocol_config.en_dyn_ack = true;
+	nrf24_protocol_config.en_dyn_payload_size = true;
+	nrf24_setup_protocol(&nrf24, &nrf24_protocol_config);
+	nrf24_pipe_set_tx_addr(&nrf24, 0xacacacacac);
+
+	nrf24_mode_standby(&nrf24);
+	nrf24_mode_tx(&nrf24);
 
 
 	struct bus spi_bus;
@@ -104,6 +134,40 @@ void app_main(){
 			ds18b20_read_raw_temperature(&ds, &raw_t, &crc_ok);
 			ds18b20_start_conversion(&ds);
 			first = HAL_GetTick();
+
+		nrf24_fifo_status_t rx_status;
+		nrf24_fifo_status_t tx_status;
+		int test = 0;
+		uint8_t buf[32];
+		uint32_t radio_time;
+		int next_stade;
+		switch (test)
+		{
+		case RADIO_WAIT:
+			nrf24_fifo_status(&nrf24, &rx_status, &tx_status);
+			if(tx_status == NRF24_FIFO_EMPTY)
+				test = next_stade;
+			if (HAL_GetTick() - radio_time > 50)
+			{
+				nrf24_fifo_flush_tx(&nrf24);
+				test = next_stade;
+			}
+			break;
+		case RADIO_PACKET1:
+			nrf24_fifo_write(&nrf24, buf, 32, false);
+			radio_time = HAL_GetTick();
+			test = RADIO_WAIT;
+			next_stade = RADIO_PACKET2;
+		case RADIO_PACKET2:
+			nrf24_fifo_write(&nrf24, buf, 32, false);
+			radio_time = HAL_GetTick();
+			test = RADIO_WAIT;
+			next_stade = RADIO_PACKET1;
+		}
+
+
+
+
 		}
 		for(int i = 0; i < 3; i++){
 			ads1115_write_mux(i+4, &ADS);
