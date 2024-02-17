@@ -188,6 +188,13 @@ void app_main(){
 	bool crc_ok;
 	uint32_t first = HAL_GetTick();
 	volatile float lux;
+	nrf24_fifo_status_t rx_status;
+	nrf24_fifo_status_t tx_status;
+	int state_now = RADIO_PACKET1;
+	uint8_t buf[32];
+	uint32_t radio_time = 0;
+	radio_t next_stade;
+	int pkt_count = 0;
 	while(1){
 		uint16_t ads_raw[3];
 		float ads_conv[3];
@@ -201,45 +208,47 @@ void app_main(){
 			pack_imu.gyr[i] = gyro_dps[i] * 1000;
 		}
 		bme280_get_sensor_data(BME280_ALL, &bme_data, &bme);
-		if(HAL_GetTick() >= first + 750){
+		if(HAL_GetTick() >= first + 750)
+		{
 			ds18b20_read_raw_temperature(&ds, &raw_t, &crc_ok);
 			ds18b20_start_conversion(&ds);
 			first = HAL_GetTick();
+		}
 
-		nrf24_fifo_status_t rx_status;
-		nrf24_fifo_status_t tx_status;
-		int test = 0;
-		uint8_t buf[32];
-		uint32_t radio_time;
-		int next_stade;
-		switch (test)
+
+		switch (state_now)
 		{
 		case RADIO_WAIT:
 			nrf24_fifo_status(&nrf24, &rx_status, &tx_status);
 			if(tx_status == NRF24_FIFO_EMPTY)
-				test = next_stade;
+				state_now = next_stade;
 			if (HAL_GetTick() - radio_time > 50)
 			{
 				nrf24_fifo_flush_tx(&nrf24);
-				test = next_stade;
+				state_now = next_stade;
 			}
 			break;
 		case RADIO_PACKET1:
 			nrf24_fifo_write(&nrf24, buf, 32, false);
 			radio_time = HAL_GetTick();
-			test = RADIO_WAIT;
+			state_now = RADIO_WAIT;
 			next_stade = RADIO_PACKET2;
+			break;
 		case RADIO_PACKET2:
 			nrf24_fifo_write(&nrf24, buf, 32, false);
 			radio_time = HAL_GetTick();
-			test = RADIO_WAIT;
-			next_stade = RADIO_PACKET1;
+			state_now = RADIO_WAIT;
+			pkt_count++;
+			if (pkt_count > 10)
+			{
+				next_stade = RADIO_PACKET1;
+				pkt_count = 0;
+			}
+			else
+				next_stade = RADIO_PACKET2;
+			break;
 		}
 
-
-
-
-		}
 		for(int i = 0; i < 3; i++){
 			ads1115_write_mux(i+4, &ADS);
 			ads1115_req_single(&ADS);
