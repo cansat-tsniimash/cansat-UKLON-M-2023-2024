@@ -22,10 +22,14 @@ extern I2C_HandleTypeDef hi2c1;
 
 typedef enum
 {
-	RADIO_PACKET,
+	RADIO_PACKET_IMU,
+	RADIO_PACKET_ATGM,
+	RADIO_PACKET_NEO6M,
+	RADIO_PACKET_MICS,
+	RADIO_PACKET_GY25,
+	RADIO_PACKET_ORG,
 	RADIO_WAIT,
-	RADIO_PACKET1,
-	RADIO_PACKET2,
+
 } radio_t;
 
 typedef struct{
@@ -180,6 +184,19 @@ void app_main(){
 
 	struct bme280_data bme_data;
 	packet_imu_t pack_imu;
+	pack_imu.flag = 0xF1;
+	packet_t pack_org;
+	pack_org.flag = 0xA2;
+	packet_GY25_t pack_GY25;
+	pack_GY25.flag = 0xF3;
+	packet_MICS_t pack_MICS;
+	pack_MICS.flag = 0xF4;
+	packet_NEO6M_t pack_NEO6M;
+	pack_NEO6M.flag = 0xA5;
+	packet_atgm_t pack_atgm;
+	pack_atgm.flag = 0xA6;
+	uint16_t ads_raw[3];
+	float ads_conv[3];
 	float temp_lis, temp_lsm;
 	float mag[3];
 	float acc_g[3];
@@ -190,14 +207,14 @@ void app_main(){
 	volatile float lux;
 	nrf24_fifo_status_t rx_status;
 	nrf24_fifo_status_t tx_status;
-	int state_now = RADIO_PACKET1;
-	uint8_t buf[32];
+	int state_now = RADIO_PACKET_ORG;
+	uint8_t buf[32] = "Hello, its me";
 	uint32_t radio_time = 0;
 	radio_t next_stade;
 	int pkt_count = 0;
+	int comp = 0;
 	while(1){
-		uint16_t ads_raw[3];
-		float ads_conv[3];
+
 
 		lux = photorezistor_get_lux(pht);
 		lisread(&lis, &temp_lis, &mag);
@@ -220,6 +237,8 @@ void app_main(){
 		{
 		case RADIO_WAIT:
 			nrf24_fifo_status(&nrf24, &rx_status, &tx_status);
+			nrf24_irq_get(&nrf24, &comp);
+			nrf24_irq_clear(&nrf24, comp);
 			if(tx_status == NRF24_FIFO_EMPTY)
 				state_now = next_stade;
 			if (HAL_GetTick() - radio_time > 50)
@@ -228,24 +247,49 @@ void app_main(){
 				state_now = next_stade;
 			}
 			break;
-		case RADIO_PACKET1:
-			nrf24_fifo_write(&nrf24, buf, 32, false);
+		case RADIO_PACKET_ORG:
+			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_org, 32, false);//sizeof(packet_t), false);
 			radio_time = HAL_GetTick();
 			state_now = RADIO_WAIT;
-			next_stade = RADIO_PACKET2;
+			next_stade = RADIO_PACKET_ATGM;
 			break;
-		case RADIO_PACKET2:
-			nrf24_fifo_write(&nrf24, buf, 32, false);
+		case RADIO_PACKET_ATGM:
+			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_atgm, 32, false);//sizeof(packet_atgm_t), false);
+			radio_time = HAL_GetTick();
+			state_now = RADIO_WAIT;
+			next_stade = RADIO_PACKET_NEO6M;
+			break;
+		case RADIO_PACKET_NEO6M:
+			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_NEO6M, 32, false);//sizeof(packet_NEO6M_t), false);
+			radio_time = HAL_GetTick();
+			state_now = RADIO_WAIT;
+			next_stade = RADIO_PACKET_IMU;
+			break;
+		case RADIO_PACKET_IMU:
+			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_imu, 32, false);
 			radio_time = HAL_GetTick();
 			state_now = RADIO_WAIT;
 			pkt_count++;
 			if (pkt_count > 10)
 			{
-				next_stade = RADIO_PACKET1;
+				next_stade = RADIO_PACKET_ORG;
 				pkt_count = 0;
 			}
 			else
-				next_stade = RADIO_PACKET2;
+				next_stade = RADIO_PACKET_MICS;
+			break;
+
+		case RADIO_PACKET_MICS:
+			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_MICS, 32, false);//sizeof(packet_MICS_t), false);
+			radio_time = HAL_GetTick();
+			state_now = RADIO_WAIT;
+			next_stade = RADIO_PACKET_GY25;
+			break;
+		case RADIO_PACKET_GY25:
+			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_GY25, 32, false);//sizeof(packet_GY25_t), false);
+			radio_time = HAL_GetTick();
+			state_now = RADIO_WAIT;
+			next_stade = RADIO_PACKET_IMU;
 			break;
 		}
 
@@ -253,7 +297,7 @@ void app_main(){
 			ads1115_write_mux(i+4, &ADS);
 			ads1115_req_single(&ADS);
 			HAL_Delay(1);
-			ads1115_read_single(&ADS, ads_raw[i]);
+			ads1115_read_single(&ADS, &ads_raw[i]);
 			ads_conv[i] = ads1115_convert(&ADS, ads_raw[i]);
 		}
 	}
