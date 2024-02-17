@@ -32,13 +32,14 @@ typedef enum
 
 } radio_t;
 
+#pragma pack(push,1)
 typedef struct{
 	uint8_t flag;
 	uint16_t num;
 	uint32_t time;
-	uint16_t acc[3]; /* Данные акселерометра */
-	uint16_t gyr[3];/* Данные  гироскопа*/
-	uint16_t mag[3];/*Данные магнитометра*/
+	int16_t acc[3]; /* Данные акселерометра */
+	int16_t gyr[3];/* Данные  гироскопа*/
+	int16_t mag[3];/*Данные магнитометра*/
 	uint16_t crc;
 }packet_imu_t;
 typedef struct {
@@ -49,7 +50,7 @@ typedef struct {
 	float lon;/*долгота*/
 	float height;/*высота*/
 	uint8_t fix;
-	uint16_t DS_temp;
+	int16_t DS_temp;
 	uint16_t crc;
 }packet_atgm_t;
 typedef struct {
@@ -90,11 +91,12 @@ typedef struct {
 	uint16_t flag;
 	uint16_t id;
 	uint32_t time;
-	uint32_t pres; /*давление*/
 	int16_t temp; /*температура*/
-	uint32_t accel[3];
-	uint16_t crc;
+	uint32_t pres; /*давление*/
+	int16_t accel[3];
+	uint8_t crc;
 }packet_t;
+#pragma pack(pop)
 
 void app_main(){
 	shift_reg_t sr_imu;
@@ -187,18 +189,18 @@ void app_main(){
 	pack_imu.flag = 0xF1;
 	pack_imu.num = 0;
 	packet_t pack_org;
-	pack_org.flag = 0xA2;
+	pack_org.flag = 0xAAAA;
 	packet_GY25_t pack_GY25;
-	pack_GY25.flag = 0xF3;
+	pack_GY25.flag = 0xF2;
 	pack_GY25.num = 0;
 	packet_MICS_t pack_MICS;
-	pack_MICS.flag = 0xF4;
+	pack_MICS.flag = 0xF3;
 	pack_MICS.num = 0;
 	packet_NEO6M_t pack_NEO6M;
-	pack_NEO6M.flag = 0xA5;
+	pack_NEO6M.flag = 0xAB;
 	pack_NEO6M.num = 0;
 	packet_atgm_t pack_atgm;
-	pack_atgm.flag = 0xA6;
+	pack_atgm.flag = 0xAC;
 	pack_atgm.num = 0;
 
 
@@ -233,9 +235,9 @@ void app_main(){
 			pack_org.accel[i] = acc_g[i] * 1000;
 		}
 		bme280_get_sensor_data(BME280_ALL, &bme_data, &bme);
-		pack_GY25.temp = bme_data.temperature;
+		pack_GY25.temp = bme_data.temperature * 100;
 		pack_GY25.pres = bme_data.pressure;
-		pack_org.temp = bme_data.temperature;
+		pack_org.temp = bme_data.temperature * 100;
 		pack_org.pres = bme_data.pressure;
 		if(HAL_GetTick() >= first + 750)
 		{
