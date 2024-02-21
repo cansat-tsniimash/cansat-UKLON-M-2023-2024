@@ -158,7 +158,7 @@ void app_main(){
 
 	struct bme280_dev bme;
 	struct bme_spi_intf bme_spi_intf;
-	bme_spi_intf.GPIO_Pin = GPIO_PIN_10;
+	bme_spi_intf.GPIO_Pin = GPIO_PIN_11;
 	bme_spi_intf.GPIO_Port = GPIOA;
 	bme_spi_intf.spi = &hspi2;
 	bme_init_default(&bme, &bme_spi_intf);
@@ -188,10 +188,10 @@ void app_main(){
 	pht.resist = 2200;
 	pht.hadc = &hadc1;
 
-	//ads1115_t ADS;
-	//ADS.hi2c = &hi2c1;
-	////ADS.DevAddress = 0b1001000 << 1;
-	//ads1115_init(&ADS);
+	ads1115_t ADS;
+	ADS.hi2c = &hi2c1;
+	ADS.DevAddress = 0b1001000 << 1;
+	ads1115_init(&ADS);
 
 
 	packet_imu_t pack_imu;
@@ -248,7 +248,7 @@ void app_main(){
 			pack_org.accel[i] = acc_g[i] * 1000;
 		}
 		bme280_get_sensor_data(BME280_ALL, &bme_data, &bmp);
-		pack_GY25.temp = bme_data.temperature * 100; //<<---
+		pack_GY25.temp = bme_data.temperature * 100;
 		pack_GY25.pres = bme_data.pressure;
 		pack_org.temp = bme_data.temperature * 100;
 		pack_org.pres = bme_data.pressure;
@@ -284,7 +284,7 @@ void app_main(){
 		switch (state_now)
 		{
 		case RADIO_WAIT:
-			 if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9) == GPIO_PIN_RESET)
+			 if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_RESET)
 			 {
 				nrf24_fifo_status(&nrf24, &rx_status, &tx_status);
 				nrf24_irq_get(&nrf24, &comp);

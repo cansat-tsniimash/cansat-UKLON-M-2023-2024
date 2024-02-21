@@ -71,6 +71,8 @@ void Error_Handler(void);
 #define SR_nOE_RF_GPIO_Port GPIOC
 #define PPS_Pin GPIO_PIN_10
 #define PPS_GPIO_Port GPIOB
+#define BME_CS_Pin GPIO_PIN_11
+#define BME_CS_GPIO_Port GPIOA
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
