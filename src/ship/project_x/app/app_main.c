@@ -15,6 +15,7 @@
 #include "ADS1115/ADS1115.h"
 #include "nRF24L01_PL/nrf24_upper_api.h"
 #include "nRF24L01_PL/nrf24_lower_api_stm32.h"
+#include "BME280/DriverForBME280.h"
 
 extern ADC_HandleTypeDef hadc1;
 extern SPI_HandleTypeDef hspi2;
@@ -75,6 +76,7 @@ typedef struct {
 	int16_t temp; /*температура*/
 	uint16_t crc;
 }packet_MICS_t;
+
 typedef struct {
 	uint8_t flag;
 	uint16_t num;
@@ -151,8 +153,15 @@ void app_main(){
 	spi_bus.sr_imu = &sr_imu;
 	spi_bus.hspi = &hspi2;
 	spi_bus.pin = 2;
+	struct bme280_dev bmp;
+	bme_driver(&bmp, &spi_bus);
+
 	struct bme280_dev bme;
-	bme_driver(&bme, &spi_bus);
+	struct bme_spi_intf bme_spi_intf;
+	bme_spi_intf.GPIO_Pin = GPIO_PIN_10;
+	bme_spi_intf.GPIO_Port = GPIOA;
+	bme_spi_intf.spi = &hspi2;
+	bme_init_default(&bme, &bme_spi_intf);
 
 	stmdev_ctx_t lis;
 	struct lis_spi_intf_sr spi_lis;
@@ -179,12 +188,12 @@ void app_main(){
 	pht.resist = 2200;
 	pht.hadc = &hadc1;
 
-	ads1115_t ADS;
-	ADS.hi2c = &hi2c1;
-	ADS.DevAddress = 0b1001000 << 1;
-	ads1115_init(&ADS);
+	//ads1115_t ADS;
+	//ADS.hi2c = &hi2c1;
+	////ADS.DevAddress = 0b1001000 << 1;
+	//ads1115_init(&ADS);
 
-	struct bme280_data bme_data;
+
 	packet_imu_t pack_imu;
 	pack_imu.flag = 0xF1;
 	pack_imu.num = 0;
@@ -204,6 +213,9 @@ void app_main(){
 	pack_atgm.num = 0;
 
 
+	struct bme280_data bme280_data;
+	struct bme280_dev bme280_dev;
+
 	uint16_t ads_raw[3];
 	float ads_conv[3];
 	float temp_lis, temp_lsm;
@@ -222,6 +234,7 @@ void app_main(){
 	radio_t next_stade;
 	int pkt_count = 0;
 	int comp = 0;
+	struct bme280_data bme_data;
 	while(1){
 
 
@@ -234,11 +247,20 @@ void app_main(){
 			pack_imu.gyr[i] = gyro_dps[i] * 1000;
 			pack_org.accel[i] = acc_g[i] * 1000;
 		}
-		bme280_get_sensor_data(BME280_ALL, &bme_data, &bme);
-		pack_GY25.temp = bme_data.temperature * 100;
+		bme280_get_sensor_data(BME280_ALL, &bme_data, &bmp);
+		pack_GY25.temp = bme_data.temperature * 100; //<<---
 		pack_GY25.pres = bme_data.pressure;
 		pack_org.temp = bme_data.temperature * 100;
 		pack_org.pres = bme_data.pressure;
+		//<--
+
+		bme_data = bme_read_data(&bme);
+		pack_MICS.temp = bme280_data.temperature * 100;
+		pack_MICS.pres = bme280_data.pressure;
+		pack_MICS.hum = bme280_data.humidity;
+
+
+
 		if(HAL_GetTick() >= first + 750)
 		{
 			ds18b20_read_raw_temperature(&ds, &raw_temp, &crc_ok);
@@ -262,11 +284,14 @@ void app_main(){
 		switch (state_now)
 		{
 		case RADIO_WAIT:
-			nrf24_fifo_status(&nrf24, &rx_status, &tx_status);
-			nrf24_irq_get(&nrf24, &comp);
-			nrf24_irq_clear(&nrf24, comp);
-			if(tx_status == NRF24_FIFO_EMPTY)
-				state_now = next_stade;
+			 if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_9) == GPIO_PIN_RESET)
+			 {
+				nrf24_fifo_status(&nrf24, &rx_status, &tx_status);
+				nrf24_irq_get(&nrf24, &comp);
+				nrf24_irq_clear(&nrf24, comp);
+				if(tx_status == NRF24_FIFO_EMPTY)
+					state_now = next_stade;
+			 }
 			if (HAL_GetTick() - radio_time > 50)
 			{
 				nrf24_fifo_flush_tx(&nrf24);
