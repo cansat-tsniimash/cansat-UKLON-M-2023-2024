@@ -71,14 +71,14 @@ void Error_Handler(void);
 #define SR_nOE_RF_GPIO_Port GPIOC
 #define PPS_Pin GPIO_PIN_10
 #define PPS_GPIO_Port GPIOB
-#define sd_Pin GPIO_PIN_9
-#define sd_GPIO_Port GPIOC
 #define BME_CS_Pin GPIO_PIN_11
 #define BME_CS_GPIO_Port GPIOA
-#define sdC10_Pin GPIO_PIN_10
-#define sdC10_GPIO_Port GPIOC
-#define sdC11_Pin GPIO_PIN_11
-#define sdC11_GPIO_Port GPIOC
+#define switch_Pin GPIO_PIN_3
+#define switch_GPIO_Port GPIOB
+#define buzzer_Pin GPIO_PIN_4
+#define buzzer_GPIO_Port GPIOB
+#define burner_Pin GPIO_PIN_5
+#define burner_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

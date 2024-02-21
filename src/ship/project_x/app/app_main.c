@@ -12,6 +12,7 @@
 #include "driver_bme_mine.h"
 #include "LIS3MDL/DLIS3.h"
 #include "LSM6DS3/DLSM.h"
+#include <math.h>
 #include "1Wire_DS18B20/one_wire.h"
 #include "Photorezistor/photorezistor.h"
 #include "ADS1115/ADS1115.h"
@@ -24,6 +25,19 @@ extern ADC_HandleTypeDef hadc1;
 extern SPI_HandleTypeDef hspi2;
 extern I2C_HandleTypeDef hi2c1;
 
+#define BURST_TIME 2000
+
+typedef enum
+{
+	STATE_INIT,
+	STATE_BEFORE_FLIGHT,
+	STATE_ROCKET,
+	STATE_DESCENT_A,
+	STATE_DESCENT_B,
+	STATE_DESCENT_C,
+
+} machine_state_t;
+
 typedef enum
 {
 	RADIO_PACKET_IMU,
@@ -35,6 +49,7 @@ typedef enum
 	RADIO_WAIT,
 
 } radio_t;
+
 
 #pragma pack(push,1)
 typedef struct{
@@ -225,17 +240,25 @@ void app_main(){
 	uint16_t raw_temp;
 	bool crc_ok;
 	uint32_t first = HAL_GetTick();
+	uint32_t wait_time = 0;
+
 	float lux;
 	nrf24_fifo_status_t rx_status;
 	nrf24_fifo_status_t tx_status;
-	int state_now = RADIO_PACKET_ORG;
+	int radio_state_now = RADIO_PACKET_ORG;
+	int machine_state_now = STATE_BEFORE_FLIGHT;
 	uint8_t buf[32] = "Hello, its me";
 	uint32_t radio_time = 0;
 	radio_t next_stade;
+	machine_state_t next_state;
 	int pkt_count = 0;
 	int comp = 0;
+	float our_light = 0;
+	int num_light_take = 0;
 	struct bme280_data bme_data;
-
+	uint32_t pressure_on_ground;
+	bme280_get_sensor_data(BME280_ALL, &bme_data, &bmp);
+	pressure_on_ground = bme_data.pressure;
 	FATFS fileSystem;
 	FIL testFile;
 	UINT testBytes;
@@ -275,14 +298,13 @@ void app_main(){
 		pack_GY25.pres = bme_data.pressure;
 		pack_org.temp = bme_data.temperature * 100;
 		pack_org.pres = bme_data.pressure;
-		//<--
 
 		bme_data = bme_read_data(&bme);
 		pack_MICS.temp = bme_data.temperature * 100;
 		pack_MICS.pres = bme_data.pressure;
 		pack_MICS.hum = bme_data.humidity;
 
-
+		float height_on_BME280 = 44330.0*(1.0 - pow((float)bme_data.pressure/pressure_on_ground, 1.0/5.255));
 
 		if(HAL_GetTick() >= first + 750)
 		{
@@ -303,8 +325,53 @@ void app_main(){
 		pack_MICS.NO2 = ads_conv[1];
 		pack_MICS.NH3 = ads_conv[2];
 
+		switch (machine_state_now){
+		case STATE_INIT:
+			if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3) == GPIO_PIN_SET){
+				if(wait_time == 0){
+					wait_time = HAL_GetTick();
+				}
+				if (HAL_GetTick() >= wait_time + 5000){
+					machine_state_now = next_state;
+					our_light = our_light / num_light_take;
+					wait_time = 0;
+					break;
+				}
+				num_light_take += 1;
+				our_light += lux;
+			}
+			break;
+		case STATE_BEFORE_FLIGHT:
+			if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3) == GPIO_PIN_RESET){
+				machine_state_now = next_state;
+			}
+			break;
+		case STATE_ROCKET:
+			if(lux >= our_light * 0.8){
+				machine_state_now = next_state;
+			}
+			break;
+		case STATE_DESCENT_A:
+			if(height_on_BME280 >= 150.0){
+				machine_state_now = next_state;
+			}
+			break;
+		case STATE_DESCENT_B:
+			if (wait_time = 0){
+				wait_time = HAL_GetTick();
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);
+			}
+			if (HAL_GetTick() >= wait_time + BURST_TIME){
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
+				machine_state_now = next_state;
+			}
+			break;
+		case STATE_DESCENT_C:
+			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
+			break;
+		}
 
-		switch (state_now)
+		switch (radio_state_now)
 		{
 		case RADIO_WAIT:
 			 if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_RESET)
@@ -313,36 +380,36 @@ void app_main(){
 				nrf24_irq_get(&nrf24, &comp);
 				nrf24_irq_clear(&nrf24, comp);
 				if(tx_status == NRF24_FIFO_EMPTY)
-					state_now = next_stade;
+					radio_state_now = next_stade;
 			 }
 			if (HAL_GetTick() - radio_time > 50)
 			{
 				nrf24_fifo_flush_tx(&nrf24);
-				state_now = next_stade;
+				radio_state_now = next_stade;
 			}
 			break;
 		case RADIO_PACKET_ORG:
 			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_org, 32, false);//sizeof(packet_t), false);
 			radio_time = HAL_GetTick();
-			state_now = RADIO_WAIT;
+			radio_state_now = RADIO_WAIT;
 			next_stade = RADIO_PACKET_ATGM;
 			break;
 		case RADIO_PACKET_ATGM:
 			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_atgm, 32, false);//sizeof(packet_atgm_t), false);
 			radio_time = HAL_GetTick();
-			state_now = RADIO_WAIT;
+			radio_state_now = RADIO_WAIT;
 			next_stade = RADIO_PACKET_NEO6M;
 			break;
 		case RADIO_PACKET_NEO6M:
 			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_NEO6M, 32, false);//sizeof(packet_NEO6M_t), false);
 			radio_time = HAL_GetTick();
-			state_now = RADIO_WAIT;
+			radio_state_now = RADIO_WAIT;
 			next_stade = RADIO_PACKET_IMU;
 			break;
 		case RADIO_PACKET_IMU:
 			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_imu, 32, false);
 			radio_time = HAL_GetTick();
-			state_now = RADIO_WAIT;
+			radio_state_now = RADIO_WAIT;
 			pkt_count++;
 			if (pkt_count > 10)
 			{
@@ -356,13 +423,13 @@ void app_main(){
 		case RADIO_PACKET_MICS:
 			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_MICS, 32, false);//sizeof(packet_MICS_t), false);
 			radio_time = HAL_GetTick();
-			state_now = RADIO_WAIT;
+			radio_state_now = RADIO_WAIT;
 			next_stade = RADIO_PACKET_GY25;
 			break;
 		case RADIO_PACKET_GY25:
 			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_GY25, 32, false);//sizeof(packet_GY25_t), false);
 			radio_time = HAL_GetTick();
-			state_now = RADIO_WAIT;
+			radio_state_now = RADIO_WAIT;
 			next_stade = RADIO_PACKET_IMU;
 			break;
 		}

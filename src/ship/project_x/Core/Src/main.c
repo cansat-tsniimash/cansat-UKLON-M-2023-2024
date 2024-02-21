@@ -146,8 +146,8 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 6;
-  RCC_OscInitStruct.PLL.PLLN = 84;
+  RCC_OscInitStruct.PLL.PLLM = 25;
+  RCC_OscInitStruct.PLL.PLLN = 168;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 4;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
@@ -440,6 +440,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, one_wire_Pin|BME_CS_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, buzzer_Pin|burner_Pin, GPIO_PIN_RESET);
+
   /*Configure GPIO pins : SR_nOE_IMU_Pin SR_Latch_IMU_Pin SR_Latch_Pin SR_nOE_RF_Pin */
   GPIO_InitStruct.Pin = SR_nOE_IMU_Pin|SR_Latch_IMU_Pin|SR_Latch_Pin|SR_nOE_RF_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -447,8 +450,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : RF_IRQ_Pin sd_Pin sdC10_Pin sdC11_Pin */
-  GPIO_InitStruct.Pin = RF_IRQ_Pin|sd_Pin|sdC10_Pin|sdC11_Pin;
+  /*Configure GPIO pins : RF_IRQ_Pin PC9 PC10 PC11 */
+  GPIO_InitStruct.Pin = RF_IRQ_Pin|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
@@ -460,11 +463,18 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PPS_Pin */
-  GPIO_InitStruct.Pin = PPS_Pin;
+  /*Configure GPIO pins : PPS_Pin switch_Pin */
+  GPIO_InitStruct.Pin = PPS_Pin|switch_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(PPS_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : buzzer_Pin burner_Pin */
+  GPIO_InitStruct.Pin = buzzer_Pin|burner_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 }
 
