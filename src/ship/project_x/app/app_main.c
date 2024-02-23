@@ -4,6 +4,8 @@
  *  Created on: 1 дек. 2023 г.
  *      Author: Install
  */
+#include "main.h"
+#include <stm32f4xx.h>
 #include "Shift_Register/shift_reg.h"
 #include "BME280/bme280.h"
 #include "BME280/bme280_defs.h"
@@ -16,6 +18,7 @@
 #include "nRF24L01_PL/nrf24_upper_api.h"
 #include "nRF24L01_PL/nrf24_lower_api_stm32.h"
 #include "BME280/DriverForBME280.h"
+#include "fatfs.h"
 
 extern ADC_HandleTypeDef hadc1;
 extern SPI_HandleTypeDef hspi2;
@@ -235,6 +238,29 @@ void app_main(){
 	int pkt_count = 0;
 	int comp = 0;
 	struct bme280_data bme_data;
+
+	FATFS fileSystem;
+	FIL testFile;
+	UINT testBytes;
+	FRESULT res_mount = f_mount(&fileSystem, "", 1);
+	if (res_mount == FR_OK)
+	{
+		FRESULT res = f_open(&testFile, "test.txt", FA_WRITE | FA_CREATE_ALWAYS);
+		if (res == FR_OK)
+		{
+			res = f_write(&testFile, buf, sizeof(buf), &testBytes);
+			if (res == FR_OK)
+			{
+				res = f_sync(&testFile);
+				if (res == FR_OK)
+				res = f_close(&testFile);
+			}
+		}
+	}
+
+
+
+
 	while(1){
 
 
