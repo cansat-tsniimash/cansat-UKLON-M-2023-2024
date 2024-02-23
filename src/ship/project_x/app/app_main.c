@@ -16,6 +16,7 @@
 #include "nRF24L01_PL/nrf24_upper_api.h"
 #include "nRF24L01_PL/nrf24_lower_api_stm32.h"
 #include "BME280/DriverForBME280.h"
+#include "fatfs.h"
 
 extern ADC_HandleTypeDef hadc1;
 extern SPI_HandleTypeDef hspi2;
