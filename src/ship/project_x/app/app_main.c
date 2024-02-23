@@ -216,11 +216,8 @@ void app_main(){
 	pack_atgm.num = 0;
 
 
-	struct bme280_data bme280_data;
-	struct bme280_dev bme280_dev;
-
 	uint16_t ads_raw[3];
-	float ads_conv[3];
+	float ads_conv[4];
 	float temp_lis, temp_lsm;
 	float mag[3];
 	float acc_g[3];
@@ -228,7 +225,7 @@ void app_main(){
 	uint16_t raw_temp;
 	bool crc_ok;
 	uint32_t first = HAL_GetTick();
-	volatile float lux;
+	float lux;
 	nrf24_fifo_status_t rx_status;
 	nrf24_fifo_status_t tx_status;
 	int state_now = RADIO_PACKET_ORG;
@@ -281,9 +278,9 @@ void app_main(){
 		//<--
 
 		bme_data = bme_read_data(&bme);
-		pack_MICS.temp = bme280_data.temperature * 100;
-		pack_MICS.pres = bme280_data.pressure;
-		pack_MICS.hum = bme280_data.humidity;
+		pack_MICS.temp = bme_data.temperature * 100;
+		pack_MICS.pres = bme_data.pressure;
+		pack_MICS.hum = bme_data.humidity;
 
 
 
@@ -302,9 +299,9 @@ void app_main(){
 			ads1115_read_single(&ADS, &ads_raw[i]);
 			ads_conv[i] = ads1115_convert(&ADS, ads_raw[i]);
 		}
-		pack_MICS.CO = ads_raw[0];
-		pack_MICS.NO2 = ads_raw[1];
-		pack_MICS.NH3 = ads_raw[2];
+		pack_MICS.CO = ads_conv[0];
+		pack_MICS.NO2 = ads_conv[1];
+		pack_MICS.NH3 = ads_conv[2];
 
 
 		switch (state_now)
