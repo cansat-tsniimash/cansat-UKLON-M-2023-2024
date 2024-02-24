@@ -20,6 +20,7 @@
 #include "nRF24L01_PL/nrf24_lower_api_stm32.h"
 #include "BME280/DriverForBME280.h"
 #include "fatfs.h"
+#include "packet.h"
 
 extern ADC_HandleTypeDef hadc1;
 extern SPI_HandleTypeDef hspi2;
@@ -51,72 +52,9 @@ typedef enum
 } radio_t;
 
 
-#pragma pack(push,1)
-typedef struct{
-	uint8_t flag;
-	uint16_t num;
-	uint32_t time;
-	int16_t acc[3]; /* Данные акселерометра */
-	int16_t gyr[3];/* Данные  гироскопа*/
-	int16_t mag[3];/*Данные магнитометра*/
-	uint16_t crc;
-}packet_imu_t;
-typedef struct {
-	uint8_t flag;
-	uint16_t num;
-	uint32_t time;
-	float lat;/*широта*/
-	float lon;/*долгота*/
-	float height;/*высота*/
-	uint8_t fix;
-	int16_t DS_temp;
-	uint16_t crc;
-}packet_atgm_t;
-typedef struct {
-	uint8_t flag;
-	uint16_t num;
-	uint32_t time;
-	float lat;/*широта*/
-	float lon;/*долгота*/
-	float height;/*высота*/
-	uint8_t fix;
-	uint16_t crc;
-}packet_NEO6M_t;
-typedef struct {
-	uint8_t flag;
-	uint16_t num;
-	uint32_t time;
-	float CO;
-	float NO2;
-	float NH3;
-	uint32_t pres; /*давление*/
-	uint8_t hum; /*влажность*/
-	int16_t temp; /*температура*/
-	uint16_t crc;
-}packet_MICS_t;
 
-typedef struct {
-	uint8_t flag;
-	uint16_t num;
-	uint32_t time;
-	float roll;
-	float yaw;
-	float pitch;
-	uint32_t pres; /*давление*/
-	int16_t temp; /*температура*/
-	uint16_t crc;
-}packet_GY25_t;
 
-typedef struct {
-	uint16_t flag;
-	uint16_t id;
-	uint32_t time;
-	int16_t temp; /*температура*/
-	uint32_t pres; /*давление*/
-	int16_t accel[3];
-	uint8_t crc;
-}packet_t;
-#pragma pack(pop)
+
 
 void app_main(){
 	shift_reg_t sr_imu;
@@ -262,29 +200,20 @@ void app_main(){
 	FATFS fileSystem;
 	FIL testFile;
 	UINT testBytes;
+	uint32_t start_time_sd = 0;
+	FRESULT res = FR_NO_FILE;
 	FRESULT res_mount = f_mount(&fileSystem, "", 1);
 	if (res_mount == FR_OK)
 	{
-		FRESULT res = f_open(&testFile, "test.txt", FA_WRITE | FA_CREATE_ALWAYS);
-		if (res == FR_OK)
-		{
-			res = f_write(&testFile, buf, sizeof(buf), &testBytes);
-			if (res == FR_OK)
-			{
-				res = f_sync(&testFile);
-				if (res == FR_OK)
-				res = f_close(&testFile);
-			}
-		}
+		res = f_open(&testFile, "test.bin", FA_WRITE | FA_OPEN_APPEND);
 	}
 
 
 
 
 	while(1){
-
-
 		lux = photorezistor_get_lux(pht);
+
 		lisread(&lis, &temp_lis, &mag);
 		lsmread(&lsm, &temp_lsm, &acc_g, &gyro_dps);
 		for(int i = 0; i < 3; i++){
@@ -293,17 +222,16 @@ void app_main(){
 			pack_imu.gyr[i] = gyro_dps[i] * 1000;
 			pack_org.accel[i] = acc_g[i] * 1000;
 		}
+
 		bme280_get_sensor_data(BME280_ALL, &bme_data, &bmp);
 		pack_GY25.temp = bme_data.temperature * 100;
 		pack_GY25.pres = bme_data.pressure;
 		pack_org.temp = bme_data.temperature * 100;
 		pack_org.pres = bme_data.pressure;
-
 		bme_data = bme_read_data(&bme);
 		pack_MICS.temp = bme_data.temperature * 100;
 		pack_MICS.pres = bme_data.pressure;
 		pack_MICS.hum = bme_data.humidity;
-
 		float height_on_BME280 = 44330.0*(1.0 - pow((float)bme_data.pressure/pressure_on_ground, 1.0/5.255));
 
 		if(HAL_GetTick() >= first + 750)
@@ -357,7 +285,8 @@ void app_main(){
 			}
 			break;
 		case STATE_DESCENT_B:
-			if (wait_time = 0){
+			if (wait_time = 0)
+			{
 				wait_time = HAL_GetTick();
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);
 			}
@@ -370,6 +299,55 @@ void app_main(){
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
 			break;
 		}
+
+
+		// <------ sd
+
+		pack_imu.num++;
+		pack_imu.time = HAL_GetTick();
+		pack_GY25.num++;
+		pack_GY25.time = HAL_GetTick();
+		pack_MICS.num++;
+		pack_MICS.time = HAL_GetTick();
+		pack_NEO6M.num++;
+		pack_NEO6M.time = HAL_GetTick();
+		pack_atgm.num++;
+		pack_atgm.time = HAL_GetTick();
+		pack_org.time = HAL_GetTick();
+		if (res == FR_OK)
+		{
+			res = f_write(&testFile, &pack_imu, sizeof(pack_imu), &testBytes);
+			res = f_write(&testFile, &pack_GY25, sizeof(pack_GY25), &testBytes);
+			res = f_write(&testFile, &pack_MICS, sizeof(pack_MICS), &testBytes);
+			res = f_write(&testFile, &pack_NEO6M, sizeof(pack_NEO6M), &testBytes);
+			res = f_write(&testFile, &pack_atgm, sizeof(pack_atgm), &testBytes);
+			res = f_write(&testFile, &pack_org, sizeof(pack_org), &testBytes);
+		}
+		if (HAL_GetTick() - start_time_sd >= 20)
+		{
+			if (res != FR_OK)
+			{
+				if (res_mount == FR_OK)
+				{
+					f_close(&testFile);
+					res = f_open(&testFile, "test.bin", FA_WRITE | FA_OPEN_APPEND);
+				}
+				if (res != FR_OK || res_mount != FR_OK)
+				{
+					f_mount(0, "", 1);
+					extern Disk_drvTypeDef disk;
+					disk.is_initialized[0] = 0;
+					res_mount = f_mount(&fileSystem, "", 1);
+					res = f_open(&testFile, "test.bin", FA_WRITE | FA_OPEN_APPEND);
+				}
+			}
+			else
+			{
+				res = f_sync(&testFile);
+			}
+			start_time_sd = HAL_GetTick();
+		}
+
 
 		switch (radio_state_now)
 		{
@@ -419,7 +397,6 @@ void app_main(){
 			else
 				next_stade = RADIO_PACKET_MICS;
 			break;
-
 		case RADIO_PACKET_MICS:
 			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_MICS, 32, false);//sizeof(packet_MICS_t), false);
 			radio_time = HAL_GetTick();
