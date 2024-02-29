@@ -8,6 +8,7 @@
 #include <stm32f4xx.h>
 #include "Shift_Register/shift_reg.h"
 #include "BME280/bme280.h"
+#include <ATGM336H/nmea_gps.h>
 #include "BME280/bme280_defs.h"
 #include "driver_bme_mine.h"
 #include "LIS3MDL/DLIS3.h"
@@ -24,10 +25,14 @@
 #include "csv.h"
 
 extern ADC_HandleTypeDef hadc1;
+extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef huart6;
 extern SPI_HandleTypeDef hspi2;
 extern I2C_HandleTypeDef hi2c1;
 
 #define BURST_TIME 2000
+
+
 
 typedef enum
 {
@@ -59,6 +64,11 @@ typedef enum
 
 void app_main()
 {
+	float lat;
+	float lon;
+	float alt;
+	int fix_;
+	int64_t cookie;
 	shift_reg_t sr_imu;
 	sr_imu.bus = &hspi2;
 	sr_imu.latch_port = GPIOC;
@@ -76,6 +86,9 @@ void app_main()
 	sr_nrf.oe_pin = GPIO_PIN_5;
 	shift_reg_init(&sr_nrf);
 	shift_reg_write_8(&sr_nrf, 0xFF);
+
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET);
 
 	nrf24_spi_pins_sr_t spi_nrf24;
 	spi_nrf24.pos_CE = 0;
@@ -185,11 +198,22 @@ void app_main()
 	float lux;
 	nrf24_fifo_status_t rx_status;
 	nrf24_fifo_status_t tx_status;
-	int radio_state_now = RADIO_PACKET_ORG;
-	int machine_state_now = STATE_BEFORE_FLIGHT;
+	radio_t radio_state_now = RADIO_PACKET_ORG;
+	machine_state_t machine_state_now = STATE_INIT;
+
 	uint8_t buf[32] = "Hello, its me";
 	uint32_t radio_time = 0;
 	radio_t next_state;
+	float sbros_height = 150;
+
+	gps_init();
+	//__HAL_UART_ENABLE_IT(&huart6, UART_IT_RXNE);
+	//__HAL_UART_ENABLE_IT(&huart6, UART_IT_ERR);
+	__HAL_UART_ENABLE_IT(&huart1, UART_IT_RXNE);
+	__HAL_UART_ENABLE_IT(&huart1, UART_IT_ERR);
+	uint64_t gps_time_s;
+	uint32_t gps_time_us;
+
 	int pkt_count = 0;
 	int comp = 0;
 	float our_light = 0;
@@ -241,10 +265,16 @@ void app_main()
 		pack_GY25.pres = bme_data.pressure;
 		pack_org.temp = bme_data.temperature * 100;
 		pack_org.pres = bme_data.pressure;
+
+		gps_work();
+		gps_get_coords(&cookie, &lat, &lon, &alt, &fix_);
+		gps_get_time(&cookie, &gps_time_s, &gps_time_us);
+
 		bme_data = bme_read_data(&bme);
 		pack_MICS.temp = bme_data.temperature * 100;
 		pack_MICS.pres = bme_data.pressure;
 		pack_MICS.hum = bme_data.humidity;*/
+		
 		float height_on_BME280 = 44330.0*(1.0 - pow((float)bme_data.pressure/pressure_on_ground, 1.0/5.255));
 
 		if(HAL_GetTick() >= first + 750)
@@ -287,39 +317,36 @@ void app_main()
 			}
 			break;
 		case STATE_BEFORE_FLIGHT:
-			if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3) == GPIO_PIN_RESET)
-			{
-				machine_state_now = next_state;
+			if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_9) == GPIO_PIN_RESET){
+				machine_state_now = STATE_ROCKET;
 			}
 			break;
 		case STATE_ROCKET:
-			if(lux >= our_light * 0.8)
-			{
-				machine_state_now = next_state;
+			if(lux >= our_light * 0.8){
+				machine_state_now = STATE_DESCENT_A;
 			}
 			break;
 		case STATE_DESCENT_A:
-			if(height_on_BME280 >= 150.0)
-			{
-				machine_state_now = next_state;
+			if(height_on_BME280 <= sbros_height){
+				machine_state_now = STATE_DESCENT_B;
 			}
 			break;
 		case STATE_DESCENT_B:
-			if (wait_time == 0)
-			{
+			if (wait_time == 0){
 				wait_time = HAL_GetTick();
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);
 			}
 			if (HAL_GetTick() >= wait_time + BURST_TIME)
 			{
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
-				machine_state_now = next_state;
 			}
 			break;
 		case STATE_DESCENT_C:
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
 			break;
 		}
+		pack_imu.state = machine_state_now;
+	
 
 
 		// <------ sd
