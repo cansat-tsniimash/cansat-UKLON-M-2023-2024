@@ -12,8 +12,8 @@ uint16_t sd_parse_to_bytes_pack_org(char *buffer, packet_t *pack_org)
 	memset(buffer, 0, 300);
 	uint16_t num_written = snprintf(
 			buffer, 300,
-			"%d;%d;%ld;%d;%ld;%d;%d;\n",
-			pack_org->flag, pack_org->time, pack_org->temp, pack_org->pres, pack_org->accel[3], pack_org->crc);
+			"%d;%d;%ld;%d;%ld;%d;%d;%d;%d;\n",
+			pack_org->flag, pack_org->id, pack_org->time, pack_org->temp, pack_org->pres, pack_org->accel[0], pack_org->accel[1], pack_org->accel[2], pack_org->crc);
 	return num_written;
 }
 
@@ -56,7 +56,7 @@ uint16_t sd_parse_to_bytes_pack_atgm(char *buffer, packet_atgm_t *packet_atgm)
 	uint16_t num_written = snprintf(
 			buffer, 300,
 			"%d;%d;%ld;%f;%f;%f;%d;%d;%d\n",
-			packet_atgm->flag, packet_atgm->num, packet_atgm->time, packet_atgm->lat, packet_atgm->lon, packet_atgm->height, packet_atgm->fix, packet_atgm->fix, packet_atgm->crc);
+			packet_atgm->flag, packet_atgm->num, packet_atgm->time, packet_atgm->lat, packet_atgm->lon, packet_atgm->height, packet_atgm->fix, packet_atgm->DS_temp, packet_atgm->crc);
 	return num_written;
 }
 
@@ -65,7 +65,7 @@ uint16_t sd_parse_to_bytes_pack_imu(char *buffer, packet_imu_t *packet_imu)
 	memset(buffer, 0, 300);
 	uint16_t num_written = snprintf(
 			buffer, 300,
-			"%d;%d;%ld;%d;%d;%d;%d\n",
-			packet_imu->flag, packet_imu->num, packet_imu->time, packet_imu->acc[3], packet_imu->gyr[3], packet_imu->mag[3], packet_imu->crc);
+			"%d;%d;%ld;%d;%d;%d;%d;%d;%d;%d;%d;%d;%d\n",
+			packet_imu->flag, packet_imu->num, packet_imu->time, packet_imu->acc[0], packet_imu->acc[1], packet_imu->acc[2], packet_imu->gyr[0], packet_imu->gyr[1], packet_imu->gyr[2], packet_imu->mag[0], packet_imu->mag[1], packet_imu->mag[2], packet_imu->crc);
 	return num_written;
 }

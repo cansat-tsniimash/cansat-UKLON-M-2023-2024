@@ -224,7 +224,7 @@ void app_main()
 
 	while(1)
 	{
-		lux = photorezistor_get_lux(pht);
+/*		lux = photorezistor_get_lux(pht);
 
 		lisread(&lis, &temp_lis, &mag);
 		lsmread(&lsm, &temp_lsm, &acc_g, &gyro_dps);
@@ -244,7 +244,7 @@ void app_main()
 		bme_data = bme_read_data(&bme);
 		pack_MICS.temp = bme_data.temperature * 100;
 		pack_MICS.pres = bme_data.pressure;
-		pack_MICS.hum = bme_data.humidity;
+		pack_MICS.hum = bme_data.humidity;*/
 		float height_on_BME280 = 44330.0*(1.0 - pow((float)bme_data.pressure/pressure_on_ground, 1.0/5.255));
 
 		if(HAL_GetTick() >= first + 750)
@@ -371,21 +371,27 @@ void app_main()
 				res_mount = f_mount(&fileSystem, "", 1);
 				res_log = f_open(&logFile, "log.bin", FA_WRITE | FA_OPEN_APPEND);
 				res_org = f_open(&orgFile, "org.csv", FA_WRITE | FA_OPEN_APPEND);
+				f_puts("flag; id; time; temp; pres; accl0;  accl1;  accl2; crc\n", &orgFile);
 				res_GY25 = f_open(&GY25File, "GY25.csv", FA_WRITE | FA_OPEN_APPEND);
+				f_puts("flag; num; time; roll; yaw; pitch; pres; temp; crc\n", &GY25File);
 				res_MICS = f_open(&MICSFile, "MICS.csv", FA_WRITE | FA_OPEN_APPEND);
+				f_puts("flag; num; time; CO; NO2; NH3; pres; hum; temp; crc\n", &MICSFile);
 				res_NEO6M = f_open(&NEO6MFile, "NEO6M.csv", FA_WRITE | FA_OPEN_APPEND);
+				f_puts("flag; num; time; lat; lon; height; fix; crc\n", &NEO6MFile);
 				res_atgm = f_open(&atgmFile, "atgm.csv", FA_WRITE | FA_OPEN_APPEND);
+				f_puts("flag; num; time; lat; lon; height; fix; DS_temp; crc\n", &atgmFile);
 				res_imu = f_open(&imuFile, "imu.csv", FA_WRITE | FA_OPEN_APPEND);
+				f_puts("flag; num; time; accl0; accl1; accl2; gyr0; gyr1; gyr2; mag0; mag1; mag2; crc\n", &imuFile);
 			}
 			else
 			{
-				res = f_sync(&logFile);
-				res = f_sync(&orgFile);
-				res = f_sync(&GY25File);
-				res = f_sync(&MICSFile);
-				res = f_sync(&NEO6MFile);
-				res = f_sync(&atgmFile);
-				res = f_sync(&imuFile);
+				res_log = f_sync(&logFile);
+				res_org = f_sync(&orgFile);
+				res_GY25 = f_sync(&GY25File);
+				res_MICS = f_sync(&MICSFile);
+				res_NEO6M = f_sync(&NEO6MFile);
+				res_atgm = f_sync(&atgmFile);
+				res_imu = f_sync(&imuFile);
 			}
 			start_time_sd = HAL_GetTick();
 		}
@@ -401,29 +407,29 @@ void app_main()
 		pack_atgm.num++;
 		pack_atgm.time = HAL_GetTick();
 		pack_org.time = HAL_GetTick();
-		if (res == FR_OK)
+		if (res_mount == FR_OK)
 		{
-			//bin
-			res = f_write(&logFile, &pack_imu, sizeof(pack_imu), &testBytes);
-			res = f_write(&logFile, &pack_GY25, sizeof(pack_GY25), &testBytes);
-			res = f_write(&logFile, &pack_MICS, sizeof(pack_MICS), &testBytes);
-			res = f_write(&logFile, &pack_NEO6M, sizeof(pack_NEO6M), &testBytes);
-			res = f_write(&logFile, &pack_atgm, sizeof(pack_atgm), &testBytes);
-			res = f_write(&logFile, &pack_org, sizeof(pack_org), &testBytes);
+			//binres_log
+			res_log = f_write(&logFile, &pack_imu, sizeof(pack_imu), &testBytes);
+			res_log = f_write(&logFile, &pack_GY25, sizeof(pack_GY25), &testBytes);
+			res_log = f_write(&logFile, &pack_MICS, sizeof(pack_MICS), &testBytes);
+			res_log = f_write(&logFile, &pack_NEO6M, sizeof(pack_NEO6M), &testBytes);
+			res_log = f_write(&logFile, &pack_atgm, sizeof(pack_atgm), &testBytes);
+			res_log = f_write(&logFile, &pack_org, sizeof(pack_org), &testBytes);
 
 			//csv
 			string_num = sd_parse_to_bytes_pack_atgm(buffer, &pack_atgm);
-			res = f_write(&atgmFile, buffer, string_num, &testBytes);
+			res_atgm = f_write(&atgmFile, buffer, string_num, &testBytes);
 			string_num = sd_parse_to_bytes_pack_org(buffer, &pack_org);
-			res = f_write(&orgFile, buffer, string_num, &testBytes);
+			res_org = f_write(&orgFile, buffer, string_num, &testBytes);
 			string_num = sd_parse_to_bytes_pack_GY25(buffer, &pack_GY25);
-			res = f_write(&GY25File, buffer, string_num, &testBytes);
+			res_GY25 = f_write(&GY25File, buffer, string_num, &testBytes);
 			string_num = sd_parse_to_bytes_pack_MICS(buffer, &pack_MICS);
-			res = f_write(&MICSFile, buffer, string_num, &testBytes);
+			res_MICS = f_write(&MICSFile, buffer, string_num, &testBytes);
 			string_num = sd_parse_to_bytes_pack_NEO6M(buffer, &pack_NEO6M);
-			res = f_write(&NEO6MFile, buffer, string_num, &testBytes);
+			res_NEO6M = f_write(&NEO6MFile, buffer, string_num, &testBytes);
 			string_num = sd_parse_to_bytes_pack_imu(buffer, &pack_imu);
-			res = f_write(&imuFile, buffer, string_num, &testBytes);
+			res_imu = f_write(&imuFile, buffer, string_num, &testBytes);
 		}
 
 
