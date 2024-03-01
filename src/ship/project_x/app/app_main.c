@@ -21,6 +21,7 @@
 #include "BME280/DriverForBME280.h"
 #include "fatfs.h"
 #include "packet.h"
+#include "csv.h"
 
 extern ADC_HandleTypeDef hadc1;
 extern SPI_HandleTypeDef hspi2;
@@ -56,7 +57,8 @@ typedef enum
 
 
 
-void app_main(){
+void app_main()
+{
 	shift_reg_t sr_imu;
 	sr_imu.bus = &hspi2;
 	sr_imu.latch_port = GPIOC;
@@ -187,8 +189,7 @@ void app_main(){
 	int machine_state_now = STATE_BEFORE_FLIGHT;
 	uint8_t buf[32] = "Hello, its me";
 	uint32_t radio_time = 0;
-	radio_t next_stade;
-	machine_state_t next_state;
+	radio_t next_state;
 	int pkt_count = 0;
 	int comp = 0;
 	float our_light = 0;
@@ -198,25 +199,37 @@ void app_main(){
 	bme280_get_sensor_data(BME280_ALL, &bme_data, &bmp);
 	pressure_on_ground = bme_data.pressure;
 	FATFS fileSystem;
-	FIL testFile;
+	FIL imuFile;
+	FIL logFile;
+	FIL orgFile;
+	FIL GY25File;
+	FIL MICSFile;
+	FIL NEO6MFile;
+	FIL atgmFile;
 	UINT testBytes;
 	uint32_t start_time_sd = 0;
 	FRESULT res = FR_NO_FILE;
-	FRESULT res_mount = f_mount(&fileSystem, "", 1);
-	if (res_mount == FR_OK)
+	FRESULT res_org = FR_NO_FILE;
+	FRESULT res_GY25 = FR_NO_FILE;
+	FRESULT res_MICS = FR_NO_FILE;
+	FRESULT res_NEO6M = FR_NO_FILE;
+	FRESULT res_atgm = FR_NO_FILE;
+	FRESULT res_imu = FR_NO_FILE;
+	FRESULT res_log = FR_NO_FILE;
+	FRESULT res_mount = FR_NO_FILE;
+	char buffer[300];
+	int string_num;
+
+
+
+	while(1)
 	{
-		res = f_open(&testFile, "test.bin", FA_WRITE | FA_OPEN_APPEND);
-	}
-
-
-
-
-	while(1){
 		lux = photorezistor_get_lux(pht);
 
 		lisread(&lis, &temp_lis, &mag);
 		lsmread(&lsm, &temp_lsm, &acc_g, &gyro_dps);
-		for(int i = 0; i < 3; i++){
+		for(int i = 0; i < 3; i++)
+		{
 			pack_imu.mag[i] = mag[i] * 1000;
 			pack_imu.acc[i] = acc_g[i] * 1000;
 			pack_imu.gyr[i] = gyro_dps[i] * 1000;
@@ -242,7 +255,8 @@ void app_main(){
 			first = HAL_GetTick();
 		}
 
-		for(int i = 0; i < 3; i++){
+		for(int i = 0; i < 3; i++)
+		{
 			ads1115_write_mux(i+4, &ADS);
 			ads1115_req_single(&ADS);
 			HAL_Delay(1);
@@ -255,11 +269,14 @@ void app_main(){
 
 		switch (machine_state_now){
 		case STATE_INIT:
-			if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3) == GPIO_PIN_SET){
-				if(wait_time == 0){
+			if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3) == GPIO_PIN_SET)
+			{
+				if(wait_time == 0)
+				{
 					wait_time = HAL_GetTick();
 				}
-				if (HAL_GetTick() >= wait_time + 5000){
+				if (HAL_GetTick() >= wait_time + 5000)
+				{
 					machine_state_now = next_state;
 					our_light = our_light / num_light_take;
 					wait_time = 0;
@@ -270,27 +287,31 @@ void app_main(){
 			}
 			break;
 		case STATE_BEFORE_FLIGHT:
-			if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3) == GPIO_PIN_RESET){
+			if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3) == GPIO_PIN_RESET)
+			{
 				machine_state_now = next_state;
 			}
 			break;
 		case STATE_ROCKET:
-			if(lux >= our_light * 0.8){
+			if(lux >= our_light * 0.8)
+			{
 				machine_state_now = next_state;
 			}
 			break;
 		case STATE_DESCENT_A:
-			if(height_on_BME280 >= 150.0){
+			if(height_on_BME280 >= 150.0)
+			{
 				machine_state_now = next_state;
 			}
 			break;
 		case STATE_DESCENT_B:
-			if (wait_time = 0)
+			if (wait_time == 0)
 			{
 				wait_time = HAL_GetTick();
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);
 			}
-			if (HAL_GetTick() >= wait_time + BURST_TIME){
+			if (HAL_GetTick() >= wait_time + BURST_TIME)
+			{
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
 				machine_state_now = next_state;
 			}
@@ -302,6 +323,72 @@ void app_main(){
 
 
 		// <------ sd
+
+
+		if (HAL_GetTick() - start_time_sd >= 20)
+		{
+			if (res_log != FR_OK && res_mount == FR_OK)
+			{
+				f_close(&logFile);
+				res_log = f_open(&logFile, "log.bin", FA_WRITE | FA_OPEN_APPEND);
+			}
+			if (res_org != FR_OK && res_mount == FR_OK)
+			{
+				f_close(&orgFile);
+				res_org = f_open(&orgFile, "org.csv", FA_WRITE | FA_OPEN_APPEND);
+			}
+			if (res_GY25 != FR_OK && res_mount == FR_OK)
+			{
+				f_close(&GY25File);
+				res_GY25 = f_open(&GY25File, "GY25.csv", FA_WRITE | FA_OPEN_APPEND);
+			}
+			if (res_MICS != FR_OK && res_mount == FR_OK)
+			{
+				f_close(&MICSFile);
+				res_MICS = f_open(&MICSFile, "MICS.csv", FA_WRITE | FA_OPEN_APPEND);
+			}
+			if (res_NEO6M != FR_OK && res_mount == FR_OK)
+			{
+				f_close(&NEO6MFile);
+				res_NEO6M = f_open(&NEO6MFile, "NEO6M.csv", FA_WRITE | FA_OPEN_APPEND);
+			}
+			if (res_atgm != FR_OK && res_mount == FR_OK)
+			{
+				f_close(&atgmFile);
+				res_atgm = f_open(&atgmFile, "atgm.csv", FA_WRITE | FA_OPEN_APPEND);
+			}
+			if (res_imu != FR_OK && res_mount == FR_OK)
+			{
+				f_close(&imuFile);
+				res_imu = f_open(&imuFile, "imu.csv", FA_WRITE | FA_OPEN_APPEND);
+			}
+
+			if (res_log != FR_OK || res_org != FR_OK || res_GY25 != FR_OK || res_MICS != FR_OK || res_NEO6M != FR_OK || res_atgm != FR_OK || res_imu != FR_OK || res_mount != FR_OK)
+			{
+				f_mount(0, "", 1);
+				extern Disk_drvTypeDef disk;
+				disk.is_initialized[0] = 0;
+				res_mount = f_mount(&fileSystem, "", 1);
+				res_log = f_open(&logFile, "log.bin", FA_WRITE | FA_OPEN_APPEND);
+				res_org = f_open(&orgFile, "org.csv", FA_WRITE | FA_OPEN_APPEND);
+				res_GY25 = f_open(&GY25File, "GY25.csv", FA_WRITE | FA_OPEN_APPEND);
+				res_MICS = f_open(&MICSFile, "MICS.csv", FA_WRITE | FA_OPEN_APPEND);
+				res_NEO6M = f_open(&NEO6MFile, "NEO6M.csv", FA_WRITE | FA_OPEN_APPEND);
+				res_atgm = f_open(&atgmFile, "atgm.csv", FA_WRITE | FA_OPEN_APPEND);
+				res_imu = f_open(&imuFile, "imu.csv", FA_WRITE | FA_OPEN_APPEND);
+			}
+			else
+			{
+				res = f_sync(&logFile);
+				res = f_sync(&orgFile);
+				res = f_sync(&GY25File);
+				res = f_sync(&MICSFile);
+				res = f_sync(&NEO6MFile);
+				res = f_sync(&atgmFile);
+				res = f_sync(&imuFile);
+			}
+			start_time_sd = HAL_GetTick();
+		}
 
 		pack_imu.num++;
 		pack_imu.time = HAL_GetTick();
@@ -316,73 +403,64 @@ void app_main(){
 		pack_org.time = HAL_GetTick();
 		if (res == FR_OK)
 		{
-			res = f_write(&testFile, &pack_imu, sizeof(pack_imu), &testBytes);
-			res = f_write(&testFile, &pack_GY25, sizeof(pack_GY25), &testBytes);
-			res = f_write(&testFile, &pack_MICS, sizeof(pack_MICS), &testBytes);
-			res = f_write(&testFile, &pack_NEO6M, sizeof(pack_NEO6M), &testBytes);
-			res = f_write(&testFile, &pack_atgm, sizeof(pack_atgm), &testBytes);
-			res = f_write(&testFile, &pack_org, sizeof(pack_org), &testBytes);
-		}
-		if (HAL_GetTick() - start_time_sd >= 20)
-		{
-			if (res != FR_OK)
-			{
-				if (res_mount == FR_OK)
-				{
-					f_close(&testFile);
-					res = f_open(&testFile, "test.bin", FA_WRITE | FA_OPEN_APPEND);
-				}
-				if (res != FR_OK || res_mount != FR_OK)
-				{
-					f_mount(0, "", 1);
-					extern Disk_drvTypeDef disk;
-					disk.is_initialized[0] = 0;
-					res_mount = f_mount(&fileSystem, "", 1);
-					res = f_open(&testFile, "test.bin", FA_WRITE | FA_OPEN_APPEND);
-				}
-			}
-			else
-			{
-				res = f_sync(&testFile);
-			}
-			start_time_sd = HAL_GetTick();
+			//bin
+			res = f_write(&logFile, &pack_imu, sizeof(pack_imu), &testBytes);
+			res = f_write(&logFile, &pack_GY25, sizeof(pack_GY25), &testBytes);
+			res = f_write(&logFile, &pack_MICS, sizeof(pack_MICS), &testBytes);
+			res = f_write(&logFile, &pack_NEO6M, sizeof(pack_NEO6M), &testBytes);
+			res = f_write(&logFile, &pack_atgm, sizeof(pack_atgm), &testBytes);
+			res = f_write(&logFile, &pack_org, sizeof(pack_org), &testBytes);
+
+			//csv
+			string_num = sd_parse_to_bytes_pack_atgm(buffer, &pack_atgm);
+			res = f_write(&atgmFile, buffer, string_num, &testBytes);
+			string_num = sd_parse_to_bytes_pack_org(buffer, &pack_org);
+			res = f_write(&orgFile, buffer, string_num, &testBytes);
+			string_num = sd_parse_to_bytes_pack_GY25(buffer, &pack_GY25);
+			res = f_write(&GY25File, buffer, string_num, &testBytes);
+			string_num = sd_parse_to_bytes_pack_MICS(buffer, &pack_MICS);
+			res = f_write(&MICSFile, buffer, string_num, &testBytes);
+			string_num = sd_parse_to_bytes_pack_NEO6M(buffer, &pack_NEO6M);
+			res = f_write(&NEO6MFile, buffer, string_num, &testBytes);
+			string_num = sd_parse_to_bytes_pack_imu(buffer, &pack_imu);
+			res = f_write(&imuFile, buffer, string_num, &testBytes);
 		}
 
 
 		switch (radio_state_now)
 		{
 		case RADIO_WAIT:
-			 if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_RESET)
-			 {
+			if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_RESET)
+			{
 				nrf24_fifo_status(&nrf24, &rx_status, &tx_status);
 				nrf24_irq_get(&nrf24, &comp);
 				nrf24_irq_clear(&nrf24, comp);
 				if(tx_status == NRF24_FIFO_EMPTY)
-					radio_state_now = next_stade;
-			 }
+					radio_state_now = next_state;
+			}
 			if (HAL_GetTick() - radio_time > 50)
 			{
 				nrf24_fifo_flush_tx(&nrf24);
-				radio_state_now = next_stade;
+				radio_state_now = next_state;
 			}
 			break;
 		case RADIO_PACKET_ORG:
 			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_org, 32, false);//sizeof(packet_t), false);
 			radio_time = HAL_GetTick();
 			radio_state_now = RADIO_WAIT;
-			next_stade = RADIO_PACKET_ATGM;
+			next_state = RADIO_PACKET_ATGM;
 			break;
 		case RADIO_PACKET_ATGM:
 			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_atgm, 32, false);//sizeof(packet_atgm_t), false);
 			radio_time = HAL_GetTick();
 			radio_state_now = RADIO_WAIT;
-			next_stade = RADIO_PACKET_NEO6M;
+			next_state = RADIO_PACKET_NEO6M;
 			break;
 		case RADIO_PACKET_NEO6M:
 			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_NEO6M, 32, false);//sizeof(packet_NEO6M_t), false);
 			radio_time = HAL_GetTick();
 			radio_state_now = RADIO_WAIT;
-			next_stade = RADIO_PACKET_IMU;
+			next_state = RADIO_PACKET_IMU;
 			break;
 		case RADIO_PACKET_IMU:
 			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_imu, 32, false);
@@ -391,23 +469,23 @@ void app_main(){
 			pkt_count++;
 			if (pkt_count > 10)
 			{
-				next_stade = RADIO_PACKET_ORG;
+				next_state = RADIO_PACKET_ORG;
 				pkt_count = 0;
 			}
 			else
-				next_stade = RADIO_PACKET_MICS;
+				next_state = RADIO_PACKET_MICS;
 			break;
 		case RADIO_PACKET_MICS:
 			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_MICS, 32, false);//sizeof(packet_MICS_t), false);
 			radio_time = HAL_GetTick();
 			radio_state_now = RADIO_WAIT;
-			next_stade = RADIO_PACKET_GY25;
+			next_state = RADIO_PACKET_GY25;
 			break;
 		case RADIO_PACKET_GY25:
 			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_GY25, 32, false);//sizeof(packet_GY25_t), false);
 			radio_time = HAL_GetTick();
 			radio_state_now = RADIO_WAIT;
-			next_stade = RADIO_PACKET_IMU;
+			next_state = RADIO_PACKET_IMU;
 			break;
 		}
 
