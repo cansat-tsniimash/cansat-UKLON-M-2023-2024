@@ -16,6 +16,7 @@ typedef struct{
 	int16_t acc[3]; /* Данные акселерометра */
 	int16_t gyr[3];/* Данные  гироскопа*/
 	int16_t mag[3];/*Данные магнитометра*/
+	uint8_t state;
 	uint16_t crc;
 }packet_imu_t;
 typedef struct {

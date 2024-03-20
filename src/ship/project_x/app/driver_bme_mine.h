@@ -13,9 +13,8 @@
 #include "BME280/bme280_defs.h"
 
 typedef struct bus{
-	shift_reg_t *sr_imu;
-	SPI_HandleTypeDef *hspi;
-	uint8_t pin;
+	I2C_HandleTypeDef *hi2c;
+	uint8_t addr;
 }bus_t;
 
 void bme_driver(struct bme280_dev *bme, struct bus *spi_bus);

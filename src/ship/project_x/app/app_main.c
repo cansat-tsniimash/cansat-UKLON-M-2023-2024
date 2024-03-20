@@ -120,19 +120,19 @@ void app_main()
 	nrf24_mode_tx(&nrf24);
 
 
-	struct bus spi_bus;
-	spi_bus.sr_imu = &sr_imu;
-	spi_bus.hspi = &hspi2;
-	spi_bus.pin = 2;
-	struct bme280_dev bmp;
-	bme_driver(&bmp, &spi_bus);
-
+	// i2c bmp->bme
+	struct bus i2c_bus;
+	i2c_bus.hi2c = &hspi2;
 	struct bme280_dev bme;
-	struct bme_spi_intf bme_spi_intf;
-	bme_spi_intf.GPIO_Pin = GPIO_PIN_11;
-	bme_spi_intf.GPIO_Port = GPIOA;
-	bme_spi_intf.spi = &hspi2;
-	bme_init_default(&bme, &bme_spi_intf);
+	bme_driver(&bme, &i2c_bus);
+
+	// bme->bmp   pin-> sr    sr_imu
+	struct bme280_dev bmp;
+	struct bme_spi_intf_sr bmp_spi_intf;
+	bmp_spi_intf.sr = &sr_imu;
+	bmp_spi_intf.sr_pin = 2;
+	bmp_spi_intf.spi = &hspi2;
+	bme_init_default_sr(&bmp, &bmp_spi_intf);
 
 	stmdev_ctx_t lis;
 	struct lis_spi_intf_sr spi_lis;
@@ -150,9 +150,9 @@ void app_main()
 
 	ds18b20_t ds;
 	ds.onewire_port = GPIOA;
-	ds.onewire_pin = 1;
+	ds.onewire_pin = GPIO_PIN_1;
 	onewire_init(&ds);
-	ds18b20_set_config(&ds, 100, 0, DS18B20_RESOLUTION_12_BIT);
+	ds18b20_set_config(&ds, 100, -100, DS18B20_RESOLUTION_12_BIT);
 	ds18b20_start_conversion(&ds);
 
 	photorezistor_t pht;
@@ -248,7 +248,7 @@ void app_main()
 
 	while(1)
 	{
-/*		lux = photorezistor_get_lux(pht);
+		lux = photorezistor_get_lux(pht);
 
 		lisread(&lis, &temp_lis, &mag);
 		lsmread(&lsm, &temp_lsm, &acc_g, &gyro_dps);
@@ -273,7 +273,7 @@ void app_main()
 		bme_data = bme_read_data(&bme);
 		pack_MICS.temp = bme_data.temperature * 100;
 		pack_MICS.pres = bme_data.pressure;
-		pack_MICS.hum = bme_data.humidity;*/
+		pack_MICS.hum = bme_data.humidity;
 		
 		float height_on_BME280 = 44330.0*(1.0 - pow((float)bme_data.pressure/pressure_on_ground, 1.0/5.255));
 
