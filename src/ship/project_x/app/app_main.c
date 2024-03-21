@@ -122,7 +122,8 @@ void app_main()
 
 	// i2c bmp->bme
 	struct bus i2c_bus;
-	i2c_bus.hi2c = &hspi2;
+	i2c_bus.addr = BME280_I2C_ADDR_PRIM << 1;
+	i2c_bus.hi2c = &hi2c1;
 	struct bme280_dev bme;
 	bme_driver(&bme, &i2c_bus);
 
