@@ -63,8 +63,6 @@ void Error_Handler(void);
 #define SR_Latch_IMU_GPIO_Port GPIOC
 #define RF_IRQ_Pin GPIO_PIN_2
 #define RF_IRQ_GPIO_Port GPIOC
-#define one_wire_Pin GPIO_PIN_1
-#define one_wire_GPIO_Port GPIOA
 #define SR_Latch_Pin GPIO_PIN_4
 #define SR_Latch_GPIO_Port GPIOC
 #define SR_nOE_RF_Pin GPIO_PIN_5
