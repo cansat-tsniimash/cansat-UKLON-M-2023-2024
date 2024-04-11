@@ -202,10 +202,10 @@ void app_main()
 	radio_t radio_state_now = RADIO_PACKET_ORG;
 	machine_state_t machine_state_now = STATE_INIT;
 
-	uint8_t buf[32] = "Hello, its me";
 	uint32_t radio_time = 0;
 	radio_t next_state;
 	float sbros_height = 150;
+
 
 	gps_init();
 	//__HAL_UART_ENABLE_IT(&huart6, UART_IT_RXNE);
@@ -233,7 +233,6 @@ void app_main()
 	FIL atgmFile;
 	UINT testBytes;
 	uint32_t start_time_sd = 0;
-	FRESULT res = FR_NO_FILE;
 	FRESULT res_org = FR_NO_FILE;
 	FRESULT res_GY25 = FR_NO_FILE;
 	FRESULT res_MICS = FR_NO_FILE;
@@ -266,6 +265,7 @@ void app_main()
 		pack_GY25.pres = bme_data.pressure;
 		pack_org.temp = bme_data.temperature * 100;
 		pack_org.pres = bme_data.pressure;
+		float height_on_BME280 = 44330.0*(1.0 - pow((float)bme_data.pressure/pressure_on_ground, 1.0/5.255));
 
 		gps_work();
 		gps_get_coords(&cookie, &lat, &lon, &alt, &fix_);
@@ -276,7 +276,7 @@ void app_main()
 		pack_MICS.pres = bme_data.pressure;
 		pack_MICS.hum = bme_data.humidity;
 		
-		float height_on_BME280 = 44330.0*(1.0 - pow((float)bme_data.pressure/pressure_on_ground, 1.0/5.255));
+
 
 		if(HAL_GetTick() >= first + 750)
 		{
@@ -300,17 +300,19 @@ void app_main()
 
 		switch (machine_state_now){
 		case STATE_INIT:
-			if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_3) == GPIO_PIN_SET)
+			if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET)
 			{
 				if(wait_time == 0)
-				{
-					wait_time = HAL_GetTick();
-				}
-				if (HAL_GetTick() >= wait_time + 5000)
-				{
-					machine_state_now = next_state;
+								{
+									wait_time = HAL_GetTick();
+								}
+				if (HAL_GetTick() >= wait_time + 2000){
+					machine_state_now = STATE_BEFORE_FLIGHT;
 					our_light = our_light / num_light_take;
 					wait_time = 0;
+					shift_reg_write_bit_16(&sr_imu, 9, 0);
+					shift_reg_write_bit_16(&sr_imu, 10, 0);
+					shift_reg_write_bit_16(&sr_imu, 11, 0);
 					break;
 				}
 				num_light_take += 1;
@@ -318,18 +320,34 @@ void app_main()
 			}
 			break;
 		case STATE_BEFORE_FLIGHT:
-			if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_9) == GPIO_PIN_RESET){
-				machine_state_now = STATE_ROCKET;
+			if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_RESET){
+				if(wait_time == 0)
+				{
+					wait_time = HAL_GetTick();
+				}
+				if (HAL_GetTick() >= wait_time + 5000){
+					machine_state_now = STATE_ROCKET;
+					shift_reg_write_bit_16(&sr_imu, 9, 0);
+					shift_reg_write_bit_16(&sr_imu, 10, 0);
+					shift_reg_write_bit_16(&sr_imu, 11, 1);
+					break;
+				}
 			}
 			break;
 		case STATE_ROCKET:
 			if(lux >= our_light * 0.8){
 				machine_state_now = STATE_DESCENT_A;
+				shift_reg_write_bit_16(&sr_imu, 9, 0);
+				shift_reg_write_bit_16(&sr_imu, 10, 1);
+				shift_reg_write_bit_16(&sr_imu, 11, 0);
 			}
 			break;
 		case STATE_DESCENT_A:
 			if(height_on_BME280 <= sbros_height){
 				machine_state_now = STATE_DESCENT_B;
+				shift_reg_write_bit_16(&sr_imu, 9, 0);
+				shift_reg_write_bit_16(&sr_imu, 10, 1);
+				shift_reg_write_bit_16(&sr_imu, 11, 1);
 			}
 			break;
 		case STATE_DESCENT_B:
@@ -339,17 +357,34 @@ void app_main()
 			}
 			if (HAL_GetTick() >= wait_time + BURST_TIME)
 			{
+				machine_state_now = STATE_DESCENT_C;
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
+				shift_reg_write_bit_16(&sr_imu, 9, 1);
+				shift_reg_write_bit_16(&sr_imu, 10, 0);
+				shift_reg_write_bit_16(&sr_imu, 11, 0);
 			}
 			break;
 		case STATE_DESCENT_C:
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
 			break;
 		}
-		pack_imu.state = machine_state_now;
-	
+		pack_imu.state = (machine_state_now << 3) | comp;
 
+		if (res_mount != FR_OK)
+		{
+			shift_reg_write_bit_16(&sr_imu, 12, 0);
+		}
+		else{
+			shift_reg_write_bit_16(&sr_imu, 12, 1);
+		}
 
+		if(fix_ == 0)
+		{
+			shift_reg_write_bit_16(&sr_imu, 8, 0);
+		}
+		else{
+			shift_reg_write_bit_16(&sr_imu, 8, 1);
+		}
 		// <------ sd
 
 
