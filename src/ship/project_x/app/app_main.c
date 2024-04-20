@@ -102,7 +102,7 @@ void app_main()
 	nrf24_rf_config_t nrf24_rf_config;
 	nrf24_rf_config.data_rate = NRF24_DATARATE_250_KBIT;
 	nrf24_rf_config.rf_channel = 95;
-	nrf24_rf_config.tx_power = NRF24_TXPOWER_MINUS_18_DBM;
+	nrf24_rf_config.tx_power = NRF24_TXPOWER_MINUS_0_DBM;
 	nrf24_setup_rf(&nrf24, &nrf24_rf_config);
 
 	nrf24_protocol_config_t nrf24_protocol_config;
@@ -166,21 +166,21 @@ void app_main()
 	ads1115_init(&ADS);
 
 
-	packet_imu_t pack_imu;
+	packet_imu_t pack_imu = {0};
 	pack_imu.flag = 0xF1;
 	pack_imu.num = 0;
-	packet_t pack_org;
+	packet_t pack_org = {0};
 	pack_org.flag = 0xAAAA;
-	packet_GY25_t pack_GY25;
+	packet_GY25_t pack_GY25 = {0};
 	pack_GY25.flag = 0xF2;
 	pack_GY25.num = 0;
-	packet_MICS_t pack_MICS;
+	packet_MICS_t pack_MICS = {0};
 	pack_MICS.flag = 0xF3;
 	pack_MICS.num = 0;
-	packet_NEO6M_t pack_NEO6M;
+	packet_NEO6M_t pack_NEO6M = {0};
 	pack_NEO6M.flag = 0xAB;
 	pack_NEO6M.num = 0;
-	packet_atgm_t pack_atgm;
+	packet_atgm_t pack_atgm = {0};
 	pack_atgm.flag = 0xAC;
 	pack_atgm.num = 0;
 
@@ -270,6 +270,10 @@ void app_main()
 		gps_work();
 		gps_get_coords(&cookie, &lat, &lon, &alt, &fix_);
 		gps_get_time(&cookie, &gps_time_s, &gps_time_us);
+		pack_NEO6M.lat = lat;
+		pack_NEO6M.lon = lon;
+		pack_NEO6M.height = alt;
+		pack_NEO6M.fix = fix_;
 
 		bme_data = bme_read_data(&bme);
 		pack_MICS.temp = bme_data.temperature * 100;
@@ -281,7 +285,7 @@ void app_main()
 		if(HAL_GetTick() >= first + 750)
 		{
 			ds18b20_read_raw_temperature(&ds, &raw_temp, &crc_ok);
-			pack_atgm.DS_temp = raw_temp;
+			pack_atgm.DS_temp = raw_temp / 16.0 * 10.0;
 			ds18b20_start_conversion(&ds);
 			first = HAL_GetTick();
 		}
