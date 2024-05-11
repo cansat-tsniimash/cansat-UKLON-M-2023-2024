@@ -69,6 +69,8 @@ void Error_Handler(void);
 #define SR_Latch_GPIO_Port GPIOC
 #define SR_nOE_RF_Pin GPIO_PIN_5
 #define SR_nOE_RF_GPIO_Port GPIOC
+#define fire_Pin GPIO_PIN_0
+#define fire_GPIO_Port GPIOB
 #define PPS_Pin GPIO_PIN_10
 #define PPS_GPIO_Port GPIOB
 #define BME_CS_Pin GPIO_PIN_11

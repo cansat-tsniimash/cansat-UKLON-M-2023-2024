@@ -77,6 +77,7 @@ void app_main()
 	sr_imu.oe_pin = GPIO_PIN_13;
 	shift_reg_init(&sr_imu);
 	shift_reg_write_16(&sr_imu, 0xFFFF);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
 
 	shift_reg_t sr_nrf;
 	sr_nrf.bus = &hspi2;
@@ -357,12 +358,12 @@ void app_main()
 		case STATE_DESCENT_B:
 			if (wait_time == 0){
 				wait_time = HAL_GetTick();
-				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
 			}
 			if (HAL_GetTick() >= wait_time + BURST_TIME)
 			{
 				machine_state_now = STATE_DESCENT_C;
-				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
 				shift_reg_write_bit_16(&sr_imu, 9, 1);
 				shift_reg_write_bit_16(&sr_imu, 10, 0);
 				shift_reg_write_bit_16(&sr_imu, 11, 0);

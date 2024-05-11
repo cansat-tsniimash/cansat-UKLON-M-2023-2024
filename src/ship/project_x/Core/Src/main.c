@@ -438,6 +438,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, SR_nOE_IMU_Pin|SR_Latch_IMU_Pin|SR_Latch_Pin|SR_nOE_RF_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(fire_GPIO_Port, fire_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(BME_CS_GPIO_Port, BME_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
@@ -461,6 +464,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(switcher_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : fire_Pin */
+  GPIO_InitStruct.Pin = fire_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(fire_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PPS_Pin */
   GPIO_InitStruct.Pin = PPS_Pin;
