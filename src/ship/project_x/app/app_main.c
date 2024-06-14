@@ -32,8 +32,6 @@ extern I2C_HandleTypeDef hi2c1;
 
 #define BURST_TIME 2000
 
-
-
 typedef enum
 {
 	STATE_INIT,
@@ -56,10 +54,6 @@ typedef enum
 	RADIO_WAIT,
 
 } radio_t;
-
-
-
-
 
 
 void app_main()
@@ -188,10 +182,6 @@ void app_main()
 
 	uint16_t ads_raw[3];
 	float ads_conv[4];
-	float temp_lis, temp_lsm;
-	float mag[3];
-	float acc_g[3];
-	float gyro_dps[3];
 	uint16_t raw_temp;
 	bool crc_ok;
 	uint32_t first = HAL_GetTick();
@@ -200,7 +190,7 @@ void app_main()
 	float lux;
 	nrf24_fifo_status_t rx_status;
 	nrf24_fifo_status_t tx_status;
-	radio_t radio_state_now = RADIO_PACKET_ORG;
+	radio_t radio_state_now = RADIO_PACKET_IMU;
 	machine_state_t machine_state_now = STATE_INIT;
 
 	uint32_t radio_time = 0;
@@ -245,20 +235,26 @@ void app_main()
 	char buffer[300];
 	int string_num;
 
+	int16_t mag_raw[3] = {0};
+	int16_t acc_raw[3] = {0};
+	int16_t gyro_raw[3] = {0};
 
 
 	while(1)
 	{
+		uint32_t start = HAL_GetTick();
+
 		lux = photorezistor_get_lux(pht);
 
-		lisread(&lis, &temp_lis, &mag);
-		lsmread(&lsm, &temp_lsm, &acc_g, &gyro_dps);
+		lis3mdl_magnetic_raw_get(&lis, mag_raw);
+		lsm6ds3_acceleration_raw_get(&lsm, acc_raw);
+		lsm6ds3_angular_rate_raw_get(&lsm, gyro_raw);
 		for(int i = 0; i < 3; i++)
 		{
-			pack_imu.mag[i] = mag[i] * 1000;
-			pack_imu.acc[i] = acc_g[i] * 1000;
-			pack_imu.gyr[i] = gyro_dps[i] * 1000;
-			pack_org.accel[i] = acc_g[i] * 1000;
+			pack_imu.mag[i] = mag_raw[i];
+			pack_imu.acc[i] = acc_raw[i];
+			pack_imu.gyr[i] = gyro_raw[i];
+			pack_org.accel[i] = lsm6ds3_from_fs16g_to_mg(acc_raw[i]);
 		}
 
 		bme280_get_sensor_data(BME280_ALL, &bme_data, &bmp);
@@ -266,7 +262,6 @@ void app_main()
 		pack_GY25.pres = bme_data.pressure;
 		pack_org.temp = bme_data.temperature * 100;
 		pack_org.pres = bme_data.pressure;
-		float height_on_BME280 = 44330.0*(1.0 - pow((float)bme_data.pressure/pressure_on_ground, 1.0/5.255));
 
 		gps_work();
 		gps_get_coords(&cookie, &lat, &lon, &alt, &fix_);
@@ -279,8 +274,8 @@ void app_main()
 		bme_data = bme_read_data(&bme);
 		pack_MICS.temp = bme_data.temperature * 100;
 		pack_MICS.pres = bme_data.pressure;
-		pack_MICS.hum = bme_data.humidity;
-		
+		pack_MICS.hum = bme_data.humidity * 100;
+		float height_on_BME280 = 44330.0*(1.0 - pow((float)bme_data.pressure/pressure_on_ground, 1.0/5.255));
 
 
 		if(HAL_GetTick() >= first + 750)
@@ -308,10 +303,11 @@ void app_main()
 			if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET)
 			{
 				if(wait_time == 0)
-								{
-									wait_time = HAL_GetTick();
-								}
-				if (HAL_GetTick() >= wait_time + 2000){
+				{
+					wait_time = HAL_GetTick();
+				}
+				if (HAL_GetTick() >= wait_time + 2000)
+				{
 					machine_state_now = STATE_BEFORE_FLIGHT;
 					our_light = our_light / num_light_take;
 					wait_time = 0;
@@ -353,13 +349,11 @@ void app_main()
 				shift_reg_write_bit_16(&sr_imu, 9, 0);
 				shift_reg_write_bit_16(&sr_imu, 10, 1);
 				shift_reg_write_bit_16(&sr_imu, 11, 1);
-			}
-			break;
-		case STATE_DESCENT_B:
-			if (wait_time == 0){
 				wait_time = HAL_GetTick();
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
 			}
+			break;
+		case STATE_DESCENT_B:
 			if (HAL_GetTick() >= wait_time + BURST_TIME)
 			{
 				machine_state_now = STATE_DESCENT_C;
@@ -373,6 +367,8 @@ void app_main()
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
 			break;
 		}
+
+
 		pack_imu.state = (machine_state_now << 3) | comp;
 
 		if (res_mount != FR_OK)
@@ -390,10 +386,9 @@ void app_main()
 		else{
 			shift_reg_write_bit_16(&sr_imu, 8, 1);
 		}
-		// <------ sd
 
 
-		if (HAL_GetTick() - start_time_sd >= 20)
+		if (HAL_GetTick() - start_time_sd >= 50)
 		{
 			if (res_log != FR_OK && res_mount == FR_OK)
 			{
@@ -464,106 +459,141 @@ void app_main()
 			start_time_sd = HAL_GetTick();
 		}
 
-		pack_imu.num++;
-		pack_imu.time = HAL_GetTick();
-		pack_GY25.num++;
-		pack_GY25.time = HAL_GetTick();
-		pack_MICS.num++;
-		pack_MICS.time = HAL_GetTick();
-		pack_NEO6M.num++;
-		pack_NEO6M.time = HAL_GetTick();
-		pack_atgm.num++;
-		pack_atgm.time = HAL_GetTick();
-		pack_org.time = HAL_GetTick();
-		if (res_mount == FR_OK)
+		uint32_t radio_cyc_time = HAL_GetTick();
+		while (HAL_GetTick() - radio_cyc_time <= 10)
 		{
-			//binres_log
-			res_log = f_write(&logFile, &pack_imu, sizeof(pack_imu), &testBytes);
-			res_log = f_write(&logFile, &pack_GY25, sizeof(pack_GY25), &testBytes);
-			res_log = f_write(&logFile, &pack_MICS, sizeof(pack_MICS), &testBytes);
-			res_log = f_write(&logFile, &pack_NEO6M, sizeof(pack_NEO6M), &testBytes);
-			res_log = f_write(&logFile, &pack_atgm, sizeof(pack_atgm), &testBytes);
-			res_log = f_write(&logFile, &pack_org, sizeof(pack_org), &testBytes);
-
-			//csv
-			string_num = sd_parse_to_bytes_pack_atgm(buffer, &pack_atgm);
-			res_atgm = f_write(&atgmFile, buffer, string_num, &testBytes);
-			string_num = sd_parse_to_bytes_pack_org(buffer, &pack_org);
-			res_org = f_write(&orgFile, buffer, string_num, &testBytes);
-			string_num = sd_parse_to_bytes_pack_GY25(buffer, &pack_GY25);
-			res_GY25 = f_write(&GY25File, buffer, string_num, &testBytes);
-			string_num = sd_parse_to_bytes_pack_MICS(buffer, &pack_MICS);
-			res_MICS = f_write(&MICSFile, buffer, string_num, &testBytes);
-			string_num = sd_parse_to_bytes_pack_NEO6M(buffer, &pack_NEO6M);
-			res_NEO6M = f_write(&NEO6MFile, buffer, string_num, &testBytes);
-			string_num = sd_parse_to_bytes_pack_imu(buffer, &pack_imu);
-			res_imu = f_write(&imuFile, buffer, string_num, &testBytes);
-		}
-
-
-		switch (radio_state_now)
-		{
-		case RADIO_WAIT:
-			if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_RESET)
+			switch (radio_state_now)
 			{
-				nrf24_fifo_status(&nrf24, &rx_status, &tx_status);
-				nrf24_irq_get(&nrf24, &comp);
-				nrf24_irq_clear(&nrf24, comp);
-				if(tx_status == NRF24_FIFO_EMPTY)
+			case RADIO_WAIT:
+				if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_RESET)
+				{
+					nrf24_fifo_status(&nrf24, &rx_status, &tx_status);
+					nrf24_irq_get(&nrf24, &comp);
+					nrf24_irq_clear(&nrf24, comp);
+					if(tx_status == NRF24_FIFO_EMPTY)
+						radio_state_now = next_state;
+				}
+				if (HAL_GetTick() - radio_time > 5)
+				{
+					nrf24_fifo_flush_tx(&nrf24);
 					radio_state_now = next_state;
+				}
+				break;
+			case RADIO_PACKET_ORG:
+				pack_org.time = HAL_GetTick();
+				nrf24_fifo_write(&nrf24, (uint8_t *)&pack_org, sizeof(packet_t), false);
+				if (res_mount == FR_OK)
+				{
+					//binres_log
+					res_log = f_write(&logFile, &pack_org, sizeof(pack_org), &testBytes);
+
+					//csv
+					string_num = sd_parse_to_bytes_pack_org(buffer, &pack_org);
+					res_org = f_write(&orgFile, buffer, string_num, &testBytes);
+				}
+				radio_time = HAL_GetTick();
+				radio_state_now = RADIO_WAIT;
+				next_state = RADIO_PACKET_ATGM;
+				break;
+			case RADIO_PACKET_ATGM:
+				pack_atgm.num++;
+				pack_atgm.time = HAL_GetTick();
+				nrf24_fifo_write(&nrf24, (uint8_t *)&pack_atgm, sizeof(packet_atgm_t), false);
+				if (res_mount == FR_OK)
+				{
+					//binres_log
+					res_log = f_write(&logFile, &pack_atgm, sizeof(pack_atgm), &testBytes);
+
+					//csv
+					string_num = sd_parse_to_bytes_pack_atgm(buffer, &pack_atgm);
+					res_atgm = f_write(&atgmFile, buffer, string_num, &testBytes);
+				}
+				radio_time = HAL_GetTick();
+				radio_state_now = RADIO_WAIT;
+				next_state = RADIO_PACKET_NEO6M;
+				break;
+			case RADIO_PACKET_NEO6M:
+				pack_NEO6M.num++;
+				pack_NEO6M.time = HAL_GetTick();
+				nrf24_fifo_write(&nrf24, (uint8_t *)&pack_NEO6M, sizeof(packet_NEO6M_t), false);
+				if (res_mount == FR_OK)
+				{
+					//binres_log
+					res_log = f_write(&logFile, &pack_NEO6M, sizeof(pack_NEO6M), &testBytes);
+
+					//csv
+					res_MICS = f_write(&MICSFile, buffer, string_num, &testBytes);
+					string_num = sd_parse_to_bytes_pack_NEO6M(buffer, &pack_NEO6M);
+				}
+				radio_time = HAL_GetTick();
+				radio_state_now = RADIO_WAIT;
+				next_state = RADIO_PACKET_IMU;
+				break;
+			case RADIO_PACKET_IMU:
+				pack_imu.num++;
+				pack_imu.time = HAL_GetTick();
+				nrf24_fifo_write(&nrf24, (uint8_t *)&pack_imu, 32, false);
+				if (res_mount == FR_OK)
+				{
+					//binres_log
+					res_log = f_write(&logFile, &pack_imu, sizeof(pack_imu), &testBytes);
+
+					//csv
+					string_num = sd_parse_to_bytes_pack_imu(buffer, &pack_imu);
+					res_imu = f_write(&imuFile, buffer, string_num, &testBytes);
+				}
+				radio_time = HAL_GetTick();
+				radio_state_now = RADIO_WAIT;
+				pkt_count++;
+				if (pkt_count > 10)
+				{
+					next_state = RADIO_PACKET_ORG;
+					pkt_count = 0;
+				}
+				else
+					next_state = RADIO_PACKET_MICS;
+				break;
+			case RADIO_PACKET_MICS:
+				pack_MICS.num++;
+				pack_MICS.time = HAL_GetTick();
+				nrf24_fifo_write(&nrf24, (uint8_t *)&pack_MICS, sizeof(packet_MICS_t), false);
+				if (res_mount == FR_OK)
+				{
+					//binres_log
+					res_log = f_write(&logFile, &pack_MICS, sizeof(pack_MICS), &testBytes);
+
+					//csv
+					res_GY25 = f_write(&GY25File, buffer, string_num, &testBytes);
+					string_num = sd_parse_to_bytes_pack_MICS(buffer, &pack_MICS);
+				}
+				radio_time = HAL_GetTick();
+				radio_state_now = RADIO_WAIT;
+				next_state = RADIO_PACKET_GY25;
+				break;
+			case RADIO_PACKET_GY25:
+				pack_GY25.num++;
+				pack_GY25.time = HAL_GetTick();
+				nrf24_fifo_write(&nrf24, (uint8_t *)&pack_GY25, sizeof(packet_GY25_t), false);
+				if (res_mount == FR_OK)
+				{
+					//binres_log
+					res_log = f_write(&logFile, &pack_GY25, sizeof(pack_GY25), &testBytes);
+
+					//csv
+					string_num = sd_parse_to_bytes_pack_GY25(buffer, &pack_GY25);
+					res_GY25 = f_write(&GY25File, buffer, string_num, &testBytes);
+				}
+				radio_time = HAL_GetTick();
+				radio_state_now = RADIO_WAIT;
+				next_state = RADIO_PACKET_IMU;
+				break;
 			}
-			if (HAL_GetTick() - radio_time > 50)
-			{
-				nrf24_fifo_flush_tx(&nrf24);
-				radio_state_now = next_state;
-			}
-			break;
-		case RADIO_PACKET_ORG:
-			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_org, 32, false);//sizeof(packet_t), false);
-			radio_time = HAL_GetTick();
-			radio_state_now = RADIO_WAIT;
-			next_state = RADIO_PACKET_ATGM;
-			break;
-		case RADIO_PACKET_ATGM:
-			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_atgm, 32, false);//sizeof(packet_atgm_t), false);
-			radio_time = HAL_GetTick();
-			radio_state_now = RADIO_WAIT;
-			next_state = RADIO_PACKET_NEO6M;
-			break;
-		case RADIO_PACKET_NEO6M:
-			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_NEO6M, 32, false);//sizeof(packet_NEO6M_t), false);
-			radio_time = HAL_GetTick();
-			radio_state_now = RADIO_WAIT;
-			next_state = RADIO_PACKET_IMU;
-			break;
-		case RADIO_PACKET_IMU:
-			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_imu, 32, false);
-			radio_time = HAL_GetTick();
-			radio_state_now = RADIO_WAIT;
-			pkt_count++;
-			if (pkt_count > 10)
-			{
-				next_state = RADIO_PACKET_ORG;
-				pkt_count = 0;
-			}
-			else
-				next_state = RADIO_PACKET_MICS;
-			break;
-		case RADIO_PACKET_MICS:
-			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_MICS, 32, false);//sizeof(packet_MICS_t), false);
-			radio_time = HAL_GetTick();
-			radio_state_now = RADIO_WAIT;
-			next_state = RADIO_PACKET_GY25;
-			break;
-		case RADIO_PACKET_GY25:
-			nrf24_fifo_write(&nrf24, (uint8_t *)&pack_GY25, 32, false);//sizeof(packet_GY25_t), false);
-			radio_time = HAL_GetTick();
-			radio_state_now = RADIO_WAIT;
-			next_state = RADIO_PACKET_IMU;
-			break;
+			if (next_state == RADIO_PACKET_IMU) break;
 		}
 
-
+		uint32_t stop = HAL_GetTick();
+		volatile uint32_t dt = stop - start;
+		volatile int x = 0;
 	}
 }
 
