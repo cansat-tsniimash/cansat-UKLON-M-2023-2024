@@ -104,25 +104,32 @@ void app_main()
 	nrf24_protocol_config.address_width = NRF24_ADDRES_WIDTH_5_BYTES;
 	nrf24_protocol_config.auto_retransmit_count = 0;
 	nrf24_protocol_config.auto_retransmit_delay = 0;
-	nrf24_protocol_config.crc_size = NRF24_CRCSIZE_DISABLE;
-	nrf24_protocol_config.en_ack_payload = true;
-	nrf24_protocol_config.en_dyn_ack = true;
-	nrf24_protocol_config.en_dyn_payload_size = true;
+	nrf24_protocol_config.crc_size = NRF24_CRCSIZE_1BYTE;
+	nrf24_protocol_config.en_ack_payload = false;
+	nrf24_protocol_config.en_dyn_ack = false;
+	nrf24_protocol_config.en_dyn_payload_size = false;
 	nrf24_setup_protocol(&nrf24, &nrf24_protocol_config);
 	nrf24_pipe_set_tx_addr(&nrf24, 0xacacacacac);
+
+	nrf24_pipe_config_t pipe_config;
+	for (int i = 1; i < 6; i++)
+	{
+		pipe_config.address = 0xcfcfcfcfcf;
+		pipe_config.address = (pipe_config.address & ~((uint64_t)0xff << 32)) | ((uint64_t)(i + 7) << 32);
+		pipe_config.enable_auto_ack = true;
+		pipe_config.payload_size = -1;
+		nrf24_pipe_rx_start(&nrf24, i, &pipe_config);
+	}
 
 	nrf24_mode_standby(&nrf24);
 	nrf24_mode_tx(&nrf24);
 
-
-	// i2c bmp->bme
 	struct bus i2c_bus;
 	i2c_bus.addr = BME280_I2C_ADDR_PRIM << 1;
 	i2c_bus.hi2c = &hi2c1;
 	struct bme280_dev bme;
 	bme_driver(&bme, &i2c_bus);
 
-	// bme->bmp   pin-> sr    sr_imu
 	struct bme280_dev bmp;
 	struct bme_spi_intf_sr bmp_spi_intf;
 	bmp_spi_intf.sr = &sr_imu;
@@ -161,23 +168,23 @@ void app_main()
 	ads1115_init(&ADS);
 
 
-	packet_imu_t pack_imu = {0};
-	pack_imu.flag = 0xF1;
-	pack_imu.num = 0;
-	packet_t pack_org = {0};
-	pack_org.flag = 0xAAAA;
-	packet_GY25_t pack_GY25 = {0};
-	pack_GY25.flag = 0xF2;
-	pack_GY25.num = 0;
-	packet_MICS_t pack_MICS = {0};
-	pack_MICS.flag = 0xF3;
-	pack_MICS.num = 0;
-	packet_NEO6M_t pack_NEO6M = {0};
-	pack_NEO6M.flag = 0xAB;
-	pack_NEO6M.num = 0;
-	packet_atgm_t pack_atgm = {0};
-	pack_atgm.flag = 0xAC;
-	pack_atgm.num = 0;
+	packet_imu_union_t pack_imu = {0};
+	pack_imu.pack.flag = 0xF1;
+	pack_imu.pack.num = 0;
+	packet_union_t pack_org = {0};
+	pack_org.pack.flag = 0xAAAA;
+	packet_GY25_union_t pack_GY25 = {0};
+	pack_GY25.pack.flag = 0xF2;
+	pack_GY25.pack.num = 0;
+	packet_MICS_union_t pack_MICS = {0};
+	pack_MICS.pack.flag = 0xF3;
+	pack_MICS.pack.num = 0;
+	packet_NEO6M_union_t pack_NEO6M = {0};
+	pack_NEO6M.pack.flag = 0xAB;
+	pack_NEO6M.pack.num = 0;
+	packet_atgm_union_t pack_atgm = {0};
+	pack_atgm.pack.flag = 0xAC;
+	pack_atgm.pack.num = 0;
 
 
 	uint16_t ads_raw[3];
@@ -245,43 +252,43 @@ void app_main()
 		uint32_t start = HAL_GetTick();
 
 		lux = photorezistor_get_lux(pht);
-
+		pack_imu.pack.lux = lux;
 		lis3mdl_magnetic_raw_get(&lis, mag_raw);
 		lsm6ds3_acceleration_raw_get(&lsm, acc_raw);
 		lsm6ds3_angular_rate_raw_get(&lsm, gyro_raw);
 		for(int i = 0; i < 3; i++)
 		{
-			pack_imu.mag[i] = mag_raw[i];
-			pack_imu.acc[i] = acc_raw[i];
-			pack_imu.gyr[i] = gyro_raw[i];
-			pack_org.accel[i] = lsm6ds3_from_fs16g_to_mg(acc_raw[i]);
+			pack_imu.pack.mag[i] = mag_raw[i];
+			pack_imu.pack.acc[i] = acc_raw[i];
+			pack_imu.pack.gyr[i] = gyro_raw[i];
+			pack_org.pack.accel[i] = lsm6ds3_from_fs16g_to_mg(acc_raw[i]);
 		}
 
 		bme280_get_sensor_data(BME280_ALL, &bme_data, &bmp);
-		pack_GY25.temp = bme_data.temperature * 100;
-		pack_GY25.pres = bme_data.pressure;
-		pack_org.temp = bme_data.temperature * 100;
-		pack_org.pres = bme_data.pressure;
+		pack_GY25.pack.temp = bme_data.temperature * 100;
+		pack_GY25.pack.pres = bme_data.pressure;
+		pack_org.pack.temp = bme_data.temperature * 100;
+		pack_org.pack.pres = bme_data.pressure;
 
 		gps_work();
 		gps_get_coords(&cookie, &lat, &lon, &alt, &fix_);
 		gps_get_time(&cookie, &gps_time_s, &gps_time_us);
-		pack_NEO6M.lat = lat;
-		pack_NEO6M.lon = lon;
-		pack_NEO6M.height = alt;
-		pack_NEO6M.fix = fix_;
+		pack_NEO6M.pack.lat = lat;
+		pack_NEO6M.pack.lon = lon;
+		pack_NEO6M.pack.height = alt;
+		pack_NEO6M.pack.fix = fix_;
 
 		bme_data = bme_read_data(&bme);
-		pack_MICS.temp = bme_data.temperature * 100;
-		pack_MICS.pres = bme_data.pressure;
-		pack_MICS.hum = bme_data.humidity * 100;
+		pack_MICS.pack.temp = bme_data.temperature * 100;
+		pack_MICS.pack.pres = bme_data.pressure;
+		pack_MICS.pack.hum = bme_data.humidity * 100;
 		float height_on_BME280 = 44330.0*(1.0 - pow((float)bme_data.pressure/pressure_on_ground, 1.0/5.255));
 
 
 		if(HAL_GetTick() >= first + 750)
 		{
 			ds18b20_read_raw_temperature(&ds, &raw_temp, &crc_ok);
-			pack_atgm.DS_temp = raw_temp / 16.0 * 10.0;
+			pack_atgm.pack.DS_temp = raw_temp / 16.0 * 10.0;
 			ds18b20_start_conversion(&ds);
 			first = HAL_GetTick();
 		}
@@ -294,9 +301,9 @@ void app_main()
 			ads1115_read_single(&ADS, &ads_raw[i]);
 			ads_conv[i] = ads1115_convert(&ADS, ads_raw[i]);
 		}
-		pack_MICS.CO = ads_conv[0];
-		pack_MICS.NO2 = ads_conv[1];
-		pack_MICS.NH3 = ads_conv[2];
+		pack_MICS.pack.CO = ads_conv[0];
+		pack_MICS.pack.NO2 = ads_conv[1];
+		pack_MICS.pack.NH3 = ads_conv[2];
 
 		switch (machine_state_now){
 		case STATE_INIT:
@@ -369,7 +376,7 @@ void app_main()
 		}
 
 
-		pack_imu.state = (machine_state_now << 3) | comp;
+		pack_imu.pack.state = (machine_state_now << 3) | comp;
 
 		if (res_mount != FR_OK)
 		{
@@ -480,15 +487,15 @@ void app_main()
 				}
 				break;
 			case RADIO_PACKET_ORG:
-				pack_org.time = HAL_GetTick();
-				nrf24_fifo_write(&nrf24, (uint8_t *)&pack_org, sizeof(packet_t), false);
+				pack_org.pack.time = HAL_GetTick();
+				nrf24_fifo_write(&nrf24, pack_org.buf, 32, false);
 				if (res_mount == FR_OK)
 				{
 					//binres_log
-					res_log = f_write(&logFile, &pack_org, sizeof(pack_org), &testBytes);
+					res_log = f_write(&logFile, &pack_org.pack, sizeof(packet_t), &testBytes);
 
 					//csv
-					string_num = sd_parse_to_bytes_pack_org(buffer, &pack_org);
+					string_num = sd_parse_to_bytes_pack_org(buffer, &pack_org.pack);
 					res_org = f_write(&orgFile, buffer, string_num, &testBytes);
 				}
 				radio_time = HAL_GetTick();
@@ -496,16 +503,16 @@ void app_main()
 				next_state = RADIO_PACKET_ATGM;
 				break;
 			case RADIO_PACKET_ATGM:
-				pack_atgm.num++;
-				pack_atgm.time = HAL_GetTick();
-				nrf24_fifo_write(&nrf24, (uint8_t *)&pack_atgm, sizeof(packet_atgm_t), false);
+				pack_atgm.pack.num++;
+				pack_atgm.pack.time = HAL_GetTick();
+				nrf24_fifo_write(&nrf24, pack_atgm.buf, 32, false);
 				if (res_mount == FR_OK)
 				{
 					//binres_log
-					res_log = f_write(&logFile, &pack_atgm, sizeof(pack_atgm), &testBytes);
+					res_log = f_write(&logFile, &pack_atgm.pack, sizeof(packet_atgm_t), &testBytes);
 
 					//csv
-					string_num = sd_parse_to_bytes_pack_atgm(buffer, &pack_atgm);
+					string_num = sd_parse_to_bytes_pack_atgm(buffer, &pack_atgm.pack);
 					res_atgm = f_write(&atgmFile, buffer, string_num, &testBytes);
 				}
 				radio_time = HAL_GetTick();
@@ -513,33 +520,33 @@ void app_main()
 				next_state = RADIO_PACKET_NEO6M;
 				break;
 			case RADIO_PACKET_NEO6M:
-				pack_NEO6M.num++;
-				pack_NEO6M.time = HAL_GetTick();
-				nrf24_fifo_write(&nrf24, (uint8_t *)&pack_NEO6M, sizeof(packet_NEO6M_t), false);
+				pack_NEO6M.pack.num++;
+				pack_NEO6M.pack.time = HAL_GetTick();
+				nrf24_fifo_write(&nrf24, pack_NEO6M.buf, 32, false);
 				if (res_mount == FR_OK)
 				{
 					//binres_log
-					res_log = f_write(&logFile, &pack_NEO6M, sizeof(pack_NEO6M), &testBytes);
+					res_log = f_write(&logFile, &pack_NEO6M.pack, sizeof(packet_NEO6M_t), &testBytes);
 
 					//csv
-					res_MICS = f_write(&MICSFile, buffer, string_num, &testBytes);
-					string_num = sd_parse_to_bytes_pack_NEO6M(buffer, &pack_NEO6M);
+					string_num = sd_parse_to_bytes_pack_NEO6M(buffer, &pack_NEO6M.pack);
+					res_NEO6M = f_write(&NEO6MFile, buffer, string_num, &testBytes);
 				}
 				radio_time = HAL_GetTick();
 				radio_state_now = RADIO_WAIT;
 				next_state = RADIO_PACKET_IMU;
 				break;
 			case RADIO_PACKET_IMU:
-				pack_imu.num++;
-				pack_imu.time = HAL_GetTick();
-				nrf24_fifo_write(&nrf24, (uint8_t *)&pack_imu, 32, false);
+				pack_imu.pack.num++;
+				pack_imu.pack.time = HAL_GetTick();
+				nrf24_fifo_write(&nrf24, pack_imu.buf, 32, false);
 				if (res_mount == FR_OK)
 				{
 					//binres_log
-					res_log = f_write(&logFile, &pack_imu, sizeof(pack_imu), &testBytes);
+					res_log = f_write(&logFile, &pack_imu.pack, sizeof(packet_imu_t), &testBytes);
 
 					//csv
-					string_num = sd_parse_to_bytes_pack_imu(buffer, &pack_imu);
+					string_num = sd_parse_to_bytes_pack_imu(buffer, &pack_imu.pack);
 					res_imu = f_write(&imuFile, buffer, string_num, &testBytes);
 				}
 				radio_time = HAL_GetTick();
@@ -554,33 +561,33 @@ void app_main()
 					next_state = RADIO_PACKET_MICS;
 				break;
 			case RADIO_PACKET_MICS:
-				pack_MICS.num++;
-				pack_MICS.time = HAL_GetTick();
-				nrf24_fifo_write(&nrf24, (uint8_t *)&pack_MICS, sizeof(packet_MICS_t), false);
+				pack_MICS.pack.num++;
+				pack_MICS.pack.time = HAL_GetTick();
+				nrf24_fifo_write(&nrf24, pack_MICS.buf, 32, false);
 				if (res_mount == FR_OK)
 				{
 					//binres_log
-					res_log = f_write(&logFile, &pack_MICS, sizeof(pack_MICS), &testBytes);
+					res_log = f_write(&logFile, &pack_MICS.pack, sizeof(packet_MICS_t), &testBytes);
 
 					//csv
-					res_GY25 = f_write(&GY25File, buffer, string_num, &testBytes);
-					string_num = sd_parse_to_bytes_pack_MICS(buffer, &pack_MICS);
+					string_num = sd_parse_to_bytes_pack_MICS(buffer, &pack_MICS.pack);
+					res_MICS = f_write(&MICSFile, buffer, string_num, &testBytes);
 				}
 				radio_time = HAL_GetTick();
 				radio_state_now = RADIO_WAIT;
 				next_state = RADIO_PACKET_GY25;
 				break;
 			case RADIO_PACKET_GY25:
-				pack_GY25.num++;
-				pack_GY25.time = HAL_GetTick();
-				nrf24_fifo_write(&nrf24, (uint8_t *)&pack_GY25, sizeof(packet_GY25_t), false);
+				pack_GY25.pack.num++;
+				pack_GY25.pack.time = HAL_GetTick();
+				nrf24_fifo_write(&nrf24, pack_GY25.buf, 32, false);
 				if (res_mount == FR_OK)
 				{
 					//binres_log
-					res_log = f_write(&logFile, &pack_GY25, sizeof(pack_GY25), &testBytes);
+					res_log = f_write(&logFile, &pack_GY25.pack, sizeof(packet_GY25_t), &testBytes);
 
 					//csv
-					string_num = sd_parse_to_bytes_pack_GY25(buffer, &pack_GY25);
+					string_num = sd_parse_to_bytes_pack_GY25(buffer, &pack_GY25.pack);
 					res_GY25 = f_write(&GY25File, buffer, string_num, &testBytes);
 				}
 				radio_time = HAL_GetTick();
