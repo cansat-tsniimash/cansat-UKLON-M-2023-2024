@@ -20,15 +20,25 @@ uint16_t sd_parse_to_bytes_pack_org(char *buffer, packet_t *pack_org)
 
 uint16_t sd_parse_to_bytes_pack_GY25(char *buffer, packet_GY25_t *packet_GY25)
 {
-	/*memset(buffer, 0, 300);
+	memset(buffer, 0, 300);
 
 	uint16_t num_written = snprintf(
 			buffer, 300,
-			"%d;%d;%ld;%f;%f;%f;%ld;%d;%d\n",
-			packet_GY25->flag, packet_GY25->num, packet_GY25->time, packet_GY25->roll, packet_GY25->yaw, packet_GY25->pitch, packet_GY25->pres, packet_GY25->temp, packet_GY25->crc);
-	return num_written;*/
+			"%d;%d;%ld;%d;%d;%d;%d;%d;%d;%d;%ld;%d;%d\n",
+			packet_GY25->flag, packet_GY25->num, packet_GY25->time, packet_GY25->raw_roll_pitch[0], packet_GY25->raw_roll_pitch[1], packet_GY25->raw_roll_pitch[2], packet_GY25->quatr[0], packet_GY25->quatr[1], packet_GY25->quatr[2], packet_GY25->quatr[3], packet_GY25->pres, packet_GY25->temp, packet_GY25->crc);
+	return num_written;
 }
 
+uint16_t sd_parse_to_bytes_pack_GY25_imu(char *buffer, packet_GY25_imu_t *packet_GY25_imu)
+{
+	memset(buffer, 0, 300);
+
+	uint16_t num_written = snprintf(
+			buffer, 300,
+			"%d;%d;%ld;%d;%d;%d;%d;%d;%d;%d;%d;%d;%d;%d;%d;%d\n",
+			packet_GY25_imu->flag, packet_GY25_imu->num, packet_GY25_imu->time, packet_GY25_imu->acc[0], packet_GY25_imu->acc[1], packet_GY25_imu->acc[2], packet_GY25_imu->gyr[0], packet_GY25_imu->gyr[1], packet_GY25_imu->gyr[2], packet_GY25_imu->mag[0], packet_GY25_imu->mag[1], packet_GY25_imu->mag[2], packet_GY25_imu->acc_range, packet_GY25_imu->gyr_range, packet_GY25_imu->mag_range, packet_GY25_imu->crc);
+	return num_written;
+}
 
 uint16_t sd_parse_to_bytes_pack_MICS(char *buffer, packet_MICS_t *packet_MICS)
 {

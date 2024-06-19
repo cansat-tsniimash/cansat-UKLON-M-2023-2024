@@ -36,12 +36,15 @@ typedef struct
 	int16_t acc[3]; /* Данные акселерометра */
 	int16_t gyr[3];/* Данные  гироскопа*/
 	int16_t mag[3];/*Данные магнитометра*/
+	uint8_t acc_range;
+	uint8_t gyr_range;
+	uint8_t mag_range;
 	uint16_t crc;
 } packet_GY25_imu_t;
 
 typedef union
 {
-	packet_imu_t pack;
+	packet_GY25_imu_t pack;
 	uint8_t buf[32];
 }packet_GY25_imu_union_t;
 

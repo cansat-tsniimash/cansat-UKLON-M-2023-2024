@@ -12,6 +12,8 @@ uint16_t sd_parse_to_bytes_pack_org(char *buffer, packet_t *pack_org);
 
 uint16_t sd_parse_to_bytes_pack_GY25(char *buffer, packet_GY25_t *packet_GY25);
 
+uint16_t sd_parse_to_bytes_pack_GY25_imu(char *buffer, packet_GY25_imu_t *packet_GY25_imu);
+
 uint16_t sd_parse_to_bytes_pack_MICS(char *buffer, packet_MICS_t *packet_MICS);
 
 

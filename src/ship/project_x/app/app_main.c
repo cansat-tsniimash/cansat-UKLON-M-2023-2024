@@ -53,6 +53,7 @@ typedef enum
 	RADIO_PACKET_NEO6M,
 	RADIO_PACKET_MICS,
 	RADIO_PACKET_GY25,
+	RADIO_PACKET_GY25_IMU,
 	RADIO_PACKET_ORG,
 	RADIO_WAIT,
 
@@ -243,6 +244,7 @@ void app_main()
 	FIL logFile;
 	FIL orgFile;
 	FIL GY25File;
+	FIL GY25imuFile;
 	FIL MICSFile;
 	FIL NEO6MFile;
 	FIL atgmFile;
@@ -250,6 +252,7 @@ void app_main()
 	uint32_t start_time_sd = 0;
 	FRESULT res_org = FR_NO_FILE;
 	FRESULT res_GY25 = FR_NO_FILE;
+	FRESULT res_GY25_imu = FR_NO_FILE;
 	FRESULT res_MICS = FR_NO_FILE;
 	FRESULT res_NEO6M = FR_NO_FILE;
 	FRESULT res_atgm = FR_NO_FILE;
@@ -318,10 +321,16 @@ void app_main()
 
 		gy953spi_update(&ahrs);
 		gy953spi_get_acc(&ahrs, acc);
+		int acc_rn = gy953spi_get_acc_range(&ahrs);
 		gy953spi_get_gyro(&ahrs, gyro);
+		int gyr_rn = gy953spi_get_gyro_range(&ahrs);
 		gy953spi_get_mag(&ahrs, mag);
+		int mag_rn = gy953spi_get_mag_range(&ahrs);
 		gy953spi_get_rpy(&ahrs, raw_roll_pitch);
 		gy953spi_get_quat(&ahrs, quatr);
+		pack_GY25_imu.pack.acc_range = acc_rn;
+		pack_GY25_imu.pack.gyr_range = gyr_rn;
+		pack_GY25_imu.pack.mag_range = mag_rn;
 		for(int i = 0; i < 4; i++)
 		{
 			pack_GY25.pack.quatr[i] = quatr[i];
@@ -462,6 +471,11 @@ void app_main()
 				f_close(&GY25File);
 				res_GY25 = f_open(&GY25File, "GY25.csv", FA_WRITE | FA_OPEN_APPEND);
 			}
+			if (res_GY25_imu != FR_OK && res_mount == FR_OK)
+			{
+				f_close(&GY25imuFile);
+				res_GY25_imu = f_open(&GY25imuFile, "GY25_imu.csv", FA_WRITE | FA_OPEN_APPEND);
+			}
 			if (res_MICS != FR_OK && res_mount == FR_OK)
 			{
 				f_close(&MICSFile);
@@ -483,7 +497,7 @@ void app_main()
 				res_imu = f_open(&imuFile, "imu.csv", FA_WRITE | FA_OPEN_APPEND);
 			}
 
-			if (res_log != FR_OK || res_org != FR_OK || res_GY25 != FR_OK || res_MICS != FR_OK || res_NEO6M != FR_OK || res_atgm != FR_OK || res_imu != FR_OK || res_mount != FR_OK)
+			if (res_log != FR_OK || res_org != FR_OK || res_GY25 != FR_OK || res_GY25_imu != FR_OK || res_MICS != FR_OK || res_NEO6M != FR_OK || res_atgm != FR_OK || res_imu != FR_OK || res_mount != FR_OK)
 			{
 				f_mount(0, "", 1);
 				extern Disk_drvTypeDef disk;
@@ -493,7 +507,9 @@ void app_main()
 				res_org = f_open(&orgFile, "org.csv", FA_WRITE | FA_OPEN_APPEND);
 				f_puts("flag; id; time; temp; pres; accl0;  accl1;  accl2; crc\n", &orgFile);
 				res_GY25 = f_open(&GY25File, "GY25.csv", FA_WRITE | FA_OPEN_APPEND);
-				f_puts("flag; num; time; roll; yaw; pitch; pres; temp; crc\n", &GY25File);
+				f_puts("flag; num; time; roll; pitch; yaw; pres; temp; crc\n", &GY25File);
+				res_GY25_imu = f_open(&GY25imuFile, "GY25_imu.csv", FA_WRITE | FA_OPEN_APPEND);
+				f_puts("flag; num; time; accl0;  accl1;  accl2; gyr0; gyr1; gyr2; mag0; mag1; mag2; acc_range; gyr_range; mag_range; crc\n", &GY25imuFile);
 				res_MICS = f_open(&MICSFile, "MICS.csv", FA_WRITE | FA_OPEN_APPEND);
 				f_puts("flag; num; time; CO; NO2; NH3; pres; hum; temp; crc\n", &MICSFile);
 				res_NEO6M = f_open(&NEO6MFile, "NEO6M.csv", FA_WRITE | FA_OPEN_APPEND);
@@ -508,6 +524,7 @@ void app_main()
 				res_log = f_sync(&logFile);
 				res_org = f_sync(&orgFile);
 				res_GY25 = f_sync(&GY25File);
+				res_GY25_imu = f_sync(&GY25imuFile);
 				res_MICS = f_sync(&MICSFile);
 				res_NEO6M = f_sync(&NEO6MFile);
 				res_atgm = f_sync(&atgmFile);
@@ -645,6 +662,24 @@ void app_main()
 					//csv
 					string_num = sd_parse_to_bytes_pack_GY25(buffer, &pack_GY25.pack);
 					res_GY25 = f_write(&GY25File, buffer, string_num, &testBytes);
+				}
+				radio_time = HAL_GetTick();
+				radio_state_now = RADIO_WAIT;
+				next_state = RADIO_PACKET_GY25_IMU;
+				break;
+			case RADIO_PACKET_GY25_IMU:
+				pack_GY25_imu.pack.num++;
+				pack_GY25_imu.pack.time = HAL_GetTick();
+				pack_GY25_imu.pack.crc = bitwiseXORChecksum(pack_GY25_imu.buf, sizeof(packet_GY25_imu_t) - 2);
+				nrf24_fifo_write(&nrf24, pack_GY25_imu.buf, 32, false);
+				if (res_mount == FR_OK)
+				{
+					//binres_log
+					res_log = f_write(&logFile, &pack_GY25_imu.pack, sizeof(packet_GY25_imu_t), &testBytes);
+
+					//csv
+					string_num = sd_parse_to_bytes_pack_GY25_imu(buffer, &pack_GY25_imu.pack);
+					res_GY25_imu = f_write(&GY25imuFile, buffer, string_num, &testBytes);
 				}
 				radio_time = HAL_GetTick();
 				radio_state_now = RADIO_WAIT;
