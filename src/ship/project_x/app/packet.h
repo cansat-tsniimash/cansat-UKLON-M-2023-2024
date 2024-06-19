@@ -28,6 +28,22 @@ typedef union
 	uint8_t buf[32];
 }packet_imu_union_t;
 
+typedef struct
+{
+	uint8_t flag;
+	uint16_t num;
+	uint32_t time;
+	int16_t acc[3]; /* Данные акселерометра */
+	int16_t gyr[3];/* Данные  гироскопа*/
+	int16_t mag[3];/*Данные магнитометра*/
+	uint16_t crc;
+} packet_GY25_imu_t;
+
+typedef union
+{
+	packet_imu_t pack;
+	uint8_t buf[32];
+}packet_GY25_imu_union_t;
 
 typedef struct
 {
@@ -94,9 +110,8 @@ typedef struct
 	uint8_t flag;
 	uint16_t num;
 	uint32_t time;
-	float roll;
-	float yaw;
-	float pitch;
+	int16_t raw_roll_pitch[3];
+	int16_t quatr[4];
 	uint32_t pres; /*давление*/
 	int16_t temp; /*температура*/
 	uint16_t crc;

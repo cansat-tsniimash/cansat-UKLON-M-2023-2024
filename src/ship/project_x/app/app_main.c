@@ -23,10 +23,13 @@
 #include "fatfs.h"
 #include "packet.h"
 #include "csv.h"
+#include "gy953/gy953spi.h"
+#include "gy953spi_board_stm32f1.h"
 
 extern ADC_HandleTypeDef hadc1;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart6;
+extern SPI_HandleTypeDef hspi;
 extern SPI_HandleTypeDef hspi2;
 extern I2C_HandleTypeDef hi2c1;
 
@@ -195,6 +198,9 @@ void app_main()
 	packet_atgm_union_t pack_atgm = {0};
 	pack_atgm.pack.flag = 0xAC;
 	pack_atgm.pack.num = 0;
+	packet_GY25_imu_union_t pack_GY25_imu = {0};
+	pack_GY25_imu.pack.flag = 0xF4;
+	pack_GY25_imu.pack.num = 0;
 
 
 	uint16_t ads_raw[3];
@@ -228,6 +234,7 @@ void app_main()
 	float our_light = 0;
 	int num_light_take = 0;
 	struct bme280_data bme_data;
+	float height_on_BME280 = 0;
 	uint32_t pressure_on_ground;
 	bme280_get_sensor_data(BME280_ALL, &bme_data, &bmp);
 	pressure_on_ground = bme_data.pressure;
@@ -255,6 +262,19 @@ void app_main()
 	int16_t mag_raw[3] = {0};
 	int16_t acc_raw[3] = {0};
 	int16_t gyro_raw[3] = {0};
+	int16_t acc[3] = {0};
+	int16_t gyro[3] = {0};
+	int16_t mag[3] = {0};
+	int16_t raw_roll_pitch[3] = {0};
+	int16_t quatr[4] = {0};
+
+
+	gy953spi_board_t board = { .hspi = &hspi1, .cs_port = GPIOB, .cs_pin = GPIO_PIN_1 };
+	gy953spi_t ahrs;
+	gy953spi_init(&ahrs, &board);
+	gy953spi_reset(&ahrs);
+	gy953spi_prepare(&ahrs);
+
 
 
 	while(1)
@@ -293,7 +313,26 @@ void app_main()
 		pack_MICS.pack.temp = bme_data.temperature * 100;
 		pack_MICS.pack.pres = bme_data.pressure;
 		pack_MICS.pack.hum = bme_data.humidity * 100;
-		float height_on_BME280 = 44330.0*(1.0 - pow((float)bme_data.pressure/pressure_on_ground, 1.0/5.255));
+		height_on_BME280 = 44330.0*(1.0 - pow((float)bme_data.pressure/pressure_on_ground, 1.0/5.255));
+
+
+		gy953spi_update(&ahrs);
+		gy953spi_get_acc(&ahrs, acc);
+		gy953spi_get_gyro(&ahrs, gyro);
+		gy953spi_get_mag(&ahrs, mag);
+		gy953spi_get_rpy(&ahrs, raw_roll_pitch);
+		gy953spi_get_quat(&ahrs, quatr);
+		for(int i = 0; i < 4; i++)
+		{
+			pack_GY25.pack.quatr[i] = quatr[i];
+		}
+		for(int i = 0; i < 3; i++)
+		{
+			pack_GY25.pack.raw_roll_pitch[i] = raw_roll_pitch[i];
+			pack_GY25_imu.pack.mag[i] = mag[i];
+			pack_GY25_imu.pack.acc[i] = acc[i];
+			pack_GY25_imu.pack.gyr[i] = gyro[i];
+		}
 
 
 		if(HAL_GetTick() >= first + 750)

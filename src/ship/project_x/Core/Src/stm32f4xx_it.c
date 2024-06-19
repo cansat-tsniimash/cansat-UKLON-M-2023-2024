@@ -22,6 +22,7 @@
 #include "stm32f4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "ATGM336H/nmea_gps.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/

@@ -20,13 +20,13 @@ uint16_t sd_parse_to_bytes_pack_org(char *buffer, packet_t *pack_org)
 
 uint16_t sd_parse_to_bytes_pack_GY25(char *buffer, packet_GY25_t *packet_GY25)
 {
-	memset(buffer, 0, 300);
+	/*memset(buffer, 0, 300);
 
 	uint16_t num_written = snprintf(
 			buffer, 300,
 			"%d;%d;%ld;%f;%f;%f;%ld;%d;%d\n",
 			packet_GY25->flag, packet_GY25->num, packet_GY25->time, packet_GY25->roll, packet_GY25->yaw, packet_GY25->pitch, packet_GY25->pres, packet_GY25->temp, packet_GY25->crc);
-	return num_written;
+	return num_written;*/
 }
 
 
