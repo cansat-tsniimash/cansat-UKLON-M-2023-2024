@@ -56,6 +56,16 @@ typedef enum
 } radio_t;
 
 
+#include <stdio.h>
+
+unsigned char bitwiseXORChecksum(const unsigned char *data, int length) {
+    unsigned char checksum = 0;
+    for (int i = 0; i < length; i++) {
+        checksum ^= data[i];
+    }
+    return checksum;
+}
+
 void app_main()
 {
 	float lat;
@@ -253,6 +263,7 @@ void app_main()
 
 		lux = photorezistor_get_lux(pht);
 		pack_imu.pack.lux = lux;
+
 		lis3mdl_magnetic_raw_get(&lis, mag_raw);
 		lsm6ds3_acceleration_raw_get(&lsm, acc_raw);
 		lsm6ds3_angular_rate_raw_get(&lsm, gyro_raw);
@@ -451,7 +462,7 @@ void app_main()
 				res_atgm = f_open(&atgmFile, "atgm.csv", FA_WRITE | FA_OPEN_APPEND);
 				f_puts("flag; num; time; lat; lon; height; fix; DS_temp; crc\n", &atgmFile);
 				res_imu = f_open(&imuFile, "imu.csv", FA_WRITE | FA_OPEN_APPEND);
-				f_puts("flag; num; time; accl0; accl1; accl2; gyr0; gyr1; gyr2; mag0; mag1; mag2; crc\n", &imuFile);
+				f_puts("flag; num; time; accl0; accl1; accl2; gyr0; gyr1; gyr2; mag0; mag1; mag2; lux; crc\n", &imuFile);
 			}
 			else
 			{
@@ -480,7 +491,7 @@ void app_main()
 					if(tx_status == NRF24_FIFO_EMPTY)
 						radio_state_now = next_state;
 				}
-				if (HAL_GetTick() - radio_time > 5)
+				if (HAL_GetTick() - radio_time > 1)
 				{
 					nrf24_fifo_flush_tx(&nrf24);
 					radio_state_now = next_state;
@@ -488,6 +499,7 @@ void app_main()
 				break;
 			case RADIO_PACKET_ORG:
 				pack_org.pack.time = HAL_GetTick();
+				pack_org.pack.crc = bitwiseXORChecksum(pack_org.buf, sizeof(packet_t) - 1);
 				nrf24_fifo_write(&nrf24, pack_org.buf, 32, false);
 				if (res_mount == FR_OK)
 				{
@@ -505,6 +517,7 @@ void app_main()
 			case RADIO_PACKET_ATGM:
 				pack_atgm.pack.num++;
 				pack_atgm.pack.time = HAL_GetTick();
+				pack_atgm.pack.crc = bitwiseXORChecksum(pack_atgm.buf, sizeof(packet_atgm_t) - 2);
 				nrf24_fifo_write(&nrf24, pack_atgm.buf, 32, false);
 				if (res_mount == FR_OK)
 				{
@@ -522,6 +535,7 @@ void app_main()
 			case RADIO_PACKET_NEO6M:
 				pack_NEO6M.pack.num++;
 				pack_NEO6M.pack.time = HAL_GetTick();
+				pack_NEO6M.pack.crc = bitwiseXORChecksum(pack_NEO6M.buf, sizeof(packet_NEO6M_t) - 2);
 				nrf24_fifo_write(&nrf24, pack_NEO6M.buf, 32, false);
 				if (res_mount == FR_OK)
 				{
@@ -539,6 +553,7 @@ void app_main()
 			case RADIO_PACKET_IMU:
 				pack_imu.pack.num++;
 				pack_imu.pack.time = HAL_GetTick();
+				pack_imu.pack.crc = bitwiseXORChecksum(pack_imu.buf, sizeof(packet_imu_t) - 2);
 				nrf24_fifo_write(&nrf24, pack_imu.buf, 32, false);
 				if (res_mount == FR_OK)
 				{
@@ -563,6 +578,7 @@ void app_main()
 			case RADIO_PACKET_MICS:
 				pack_MICS.pack.num++;
 				pack_MICS.pack.time = HAL_GetTick();
+				pack_MICS.pack.crc = bitwiseXORChecksum(pack_MICS.buf, sizeof(packet_MICS_t) - 2);
 				nrf24_fifo_write(&nrf24, pack_MICS.buf, 32, false);
 				if (res_mount == FR_OK)
 				{
@@ -580,6 +596,7 @@ void app_main()
 			case RADIO_PACKET_GY25:
 				pack_GY25.pack.num++;
 				pack_GY25.pack.time = HAL_GetTick();
+				pack_GY25.pack.crc = bitwiseXORChecksum(pack_GY25.buf, sizeof(packet_GY25_t) - 2);
 				nrf24_fifo_write(&nrf24, pack_GY25.buf, 32, false);
 				if (res_mount == FR_OK)
 				{

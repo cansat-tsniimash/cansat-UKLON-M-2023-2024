@@ -66,7 +66,7 @@ uint16_t sd_parse_to_bytes_pack_imu(char *buffer, packet_imu_t *packet_imu)
 	memset(buffer, 0, 300);
 	uint16_t num_written = snprintf(
 			buffer, 300,
-			"%d;%d;%ld;%d;%d;%d;%d;%d;%d;%d;%d;%d;%d\n",
-			packet_imu->flag, packet_imu->num, packet_imu->time, packet_imu->acc[0], packet_imu->acc[1], packet_imu->acc[2], packet_imu->gyr[0], packet_imu->gyr[1], packet_imu->gyr[2], packet_imu->mag[0], packet_imu->mag[1], packet_imu->mag[2], packet_imu->crc);
+			"%d;%d;%ld;%d;%d;%d;%d;%d;%d;%d;%d;%d;%f;%d\n",
+			packet_imu->flag, packet_imu->num, packet_imu->time, packet_imu->acc[0], packet_imu->acc[1], packet_imu->acc[2], packet_imu->gyr[0], packet_imu->gyr[1], packet_imu->gyr[2], packet_imu->mag[0], packet_imu->mag[1], packet_imu->mag[2], packet_imu->lux, packet_imu->crc);
 	return num_written;
 }
