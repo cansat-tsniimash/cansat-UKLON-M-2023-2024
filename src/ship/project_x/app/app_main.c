@@ -270,6 +270,7 @@ void app_main()
 	int16_t mag[3] = {0};
 	int16_t raw_roll_pitch[3] = {0};
 	int16_t quatr[4] = {0};
+	uint32_t gy953_start = HAL_GetTick();
 
 
 	gy953spi_board_t board = { .hspi = &hspi1, .cs_port = GPIOB, .cs_pin = GPIO_PIN_1 };
@@ -277,12 +278,13 @@ void app_main()
 	gy953spi_init(&ahrs, &board);
 	gy953spi_reset(&ahrs);
 	gy953spi_prepare(&ahrs);
+	gy953spi_set_refresh_rate(&ahrs, gy953spi_refresh_rate_200hz);
 
 
 
 	while(1)
 	{
-		uint32_t start = HAL_GetTick();
+
 
 		lux = photorezistor_get_lux(pht);
 		pack_imu.pack.lux = lux;
@@ -318,31 +320,35 @@ void app_main()
 		pack_MICS.pack.hum = bme_data.humidity * 100;
 		height_on_BME280 = 44330.0*(1.0 - pow((float)bme_data.pressure/pressure_on_ground, 1.0/5.255));
 
-
-		gy953spi_update(&ahrs);
-		gy953spi_get_acc(&ahrs, acc);
-		int acc_rn = gy953spi_get_acc_range(&ahrs);
-		gy953spi_get_gyro(&ahrs, gyro);
-		int gyr_rn = gy953spi_get_gyro_range(&ahrs);
-		gy953spi_get_mag(&ahrs, mag);
-		int mag_rn = gy953spi_get_mag_range(&ahrs);
-		gy953spi_get_rpy(&ahrs, raw_roll_pitch);
-		gy953spi_get_quat(&ahrs, quatr);
-		pack_GY25_imu.pack.acc_range = acc_rn;
-		pack_GY25_imu.pack.gyr_range = gyr_rn;
-		pack_GY25_imu.pack.mag_range = mag_rn;
-		for(int i = 0; i < 4; i++)
+		if (HAL_GetTick() >= gy953_start + 25)
 		{
-			pack_GY25.pack.quatr[i] = quatr[i];
-		}
-		for(int i = 0; i < 3; i++)
-		{
-			pack_GY25.pack.raw_roll_pitch[i] = raw_roll_pitch[i];
-			pack_GY25_imu.pack.mag[i] = mag[i];
-			pack_GY25_imu.pack.acc[i] = acc[i];
-			pack_GY25_imu.pack.gyr[i] = gyro[i];
-		}
+			gy953_start = HAL_GetTick();
 
+			gy953spi_update(&ahrs);
+			gy953spi_get_acc(&ahrs, acc);
+			int acc_rn = gy953spi_get_acc_range(&ahrs);
+			gy953spi_get_gyro(&ahrs, gyro);
+			int gyr_rn = gy953spi_get_gyro_range(&ahrs);
+			gy953spi_get_mag(&ahrs, mag);
+			int mag_rn = gy953spi_get_mag_range(&ahrs);
+			gy953spi_get_rpy(&ahrs, raw_roll_pitch);
+			gy953spi_get_quat(&ahrs, quatr);
+			pack_GY25_imu.pack.acc_range = acc_rn;
+			pack_GY25_imu.pack.gyr_range = gyr_rn;
+			pack_GY25_imu.pack.mag_range = mag_rn;
+
+			for(int i = 0; i < 4; i++)
+			{
+				pack_GY25.pack.quatr[i] = quatr[i];
+			}
+			for(int i = 0; i < 3; i++)
+			{
+				pack_GY25.pack.raw_roll_pitch[i] = raw_roll_pitch[i];
+				pack_GY25_imu.pack.mag[i] = mag[i];
+				pack_GY25_imu.pack.acc[i] = acc[i];
+				pack_GY25_imu.pack.gyr[i] = gyro[i];
+			}
+		}
 
 		if(HAL_GetTick() >= first + 750)
 		{
@@ -352,14 +358,25 @@ void app_main()
 			first = HAL_GetTick();
 		}
 
-		for(int i = 0; i < 3; i++)
+		static uint32_t ads1115_deadline = 0;
+		static const uint32_t ads1115_period = 10;
+		static int ads1115_mux = 0;
+		uint32_t ads1115_now = HAL_GetTick();
+		if (ads1115_now >= ads1115_deadline)
 		{
-			ads1115_write_mux(i+4, &ADS);
+			ads1115_read_single(&ADS, &ads_raw[ads1115_mux]);
+			ads_conv[ads1115_mux] = ads1115_convert(&ADS, ads_raw[ads1115_mux]);
+
+			ads1115_mux += 1;
+			if (ads1115_mux >= 3)
+				ads1115_mux = 0;
+
+			ads1115_write_mux(4 + ads1115_mux, &ADS);
 			ads1115_req_single(&ADS);
-			HAL_Delay(1);
-			ads1115_read_single(&ADS, &ads_raw[i]);
-			ads_conv[i] = ads1115_convert(&ADS, ads_raw[i]);
+
+			ads1115_deadline = ads1115_now + ads1115_period;
 		}
+
 		pack_MICS.pack.CO = ads_conv[0];
 		pack_MICS.pack.NO2 = ads_conv[1];
 		pack_MICS.pack.NH3 = ads_conv[2];
@@ -533,21 +550,21 @@ void app_main()
 			start_time_sd = HAL_GetTick();
 		}
 
+		uint32_t start = HAL_GetTick();
 		uint32_t radio_cyc_time = HAL_GetTick();
-		while (HAL_GetTick() - radio_cyc_time <= 10)
+		while (HAL_GetTick() - radio_cyc_time <= 14)
 		{
 			switch (radio_state_now)
 			{
 			case RADIO_WAIT:
 				if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_RESET)
 				{
-					nrf24_fifo_status(&nrf24, &rx_status, &tx_status);
 					nrf24_irq_get(&nrf24, &comp);
 					nrf24_irq_clear(&nrf24, comp);
-					if(tx_status == NRF24_FIFO_EMPTY)
-						radio_state_now = next_state;
+					nrf24_fifo_flush_tx(&nrf24);
+					radio_state_now = next_state;
 				}
-				if (HAL_GetTick() - radio_time > 1)
+				if (HAL_GetTick() - radio_time > 2)
 				{
 					nrf24_fifo_flush_tx(&nrf24);
 					radio_state_now = next_state;
