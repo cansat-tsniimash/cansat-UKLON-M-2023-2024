@@ -42,6 +42,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
+extern gps_t gps1;
+extern gps_t gps2;
 
 /* USER CODE END PV */
 
@@ -208,7 +210,7 @@ void USART1_IRQHandler(void)
   /* USER CODE BEGIN USART1_IRQn 0 */
   volatile uint32_t sr = huart1.Instance->SR;
   volatile uint32_t byte = huart1.Instance->DR;
-  gps_push_byte(byte);
+  gps_push_byte(&gps1, byte);
   (void)sr;
   return;
   /* USER CODE END USART1_IRQn 0 */
@@ -223,7 +225,11 @@ void USART1_IRQHandler(void)
 void USART6_IRQHandler(void)
 {
   /* USER CODE BEGIN USART6_IRQn 0 */
-
+  volatile uint32_t sr = huart6.Instance->SR;
+  volatile uint32_t byte = huart6.Instance->DR;
+  gps_push_byte(&gps2, byte);
+  (void)sr;
+  return;
   /* USER CODE END USART6_IRQn 0 */
   HAL_UART_IRQHandler(&huart6);
   /* USER CODE BEGIN USART6_IRQn 1 */

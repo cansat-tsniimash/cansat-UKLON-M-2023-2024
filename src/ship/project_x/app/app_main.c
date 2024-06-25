@@ -70,13 +70,23 @@ unsigned char bitwiseXORChecksum(const unsigned char *data, int length) {
     return checksum;
 }
 
+
+gps_t gps1;
+gps_t gps2;
+
+
 void app_main()
 {
-	float lat;
-	float lon;
-	float alt;
-	int fix_;
-	int64_t cookie;
+	float lat1;
+	float lat2;
+	float lon1;
+	float lon2;
+	float alt1;
+	float alt2;
+	int fix_1;
+	int fix_2;
+	int64_t cookie1;
+	int64_t cookie2;
 	shift_reg_t sr_imu;
 	sr_imu.bus = &hspi2;
 	sr_imu.latch_port = GPIOC;
@@ -222,13 +232,16 @@ void app_main()
 	float sbros_height = 150;
 
 
-	gps_init();
-	//__HAL_UART_ENABLE_IT(&huart6, UART_IT_RXNE);
-	//__HAL_UART_ENABLE_IT(&huart6, UART_IT_ERR);
+	gps_init(&gps1);
+	gps_init(&gps2);
 	__HAL_UART_ENABLE_IT(&huart1, UART_IT_RXNE);
 	__HAL_UART_ENABLE_IT(&huart1, UART_IT_ERR);
-	uint64_t gps_time_s;
-	uint32_t gps_time_us;
+	__HAL_UART_ENABLE_IT(&huart6, UART_IT_RXNE);
+	__HAL_UART_ENABLE_IT(&huart6, UART_IT_ERR);
+	uint64_t gps_time_s1;
+	uint64_t gps_time_s2;
+	uint32_t gps_time_us1;
+	uint32_t gps_time_us2;
 
 	int pkt_count = 0;
 	int comp = 0;
@@ -306,13 +319,16 @@ void app_main()
 		pack_org.pack.temp = bme_data.temperature * 100;
 		pack_org.pack.pres = bme_data.pressure;
 
-		gps_work();
-		gps_get_coords(&cookie, &lat, &lon, &alt, &fix_);
-		gps_get_time(&cookie, &gps_time_s, &gps_time_us);
-		pack_NEO6M.pack.lat = lat;
-		pack_NEO6M.pack.lon = lon;
-		pack_NEO6M.pack.height = alt;
-		pack_NEO6M.pack.fix = fix_;
+		gps_work(&gps1);
+		gps_work(&gps2);
+		gps_get_coords(&gps1, &cookie1, &lat1, &lon1, &alt1, &fix_1);
+		gps_get_coords(&gps2, &cookie2, &lat2, &lon2, &alt2, &fix_2);
+		gps_get_time(&gps1, &cookie1, &gps_time_s1, &gps_time_us1);
+		gps_get_time(&gps2, &cookie2, &gps_time_s2, &gps_time_us2);
+		pack_NEO6M.pack.lat = lat1;
+		pack_NEO6M.pack.lon = lon1;
+		pack_NEO6M.pack.height = alt1;
+		pack_NEO6M.pack.fix = fix_1;
 
 		bme_data = bme_read_data(&bme);
 		pack_MICS.pack.temp = bme_data.temperature * 100;
@@ -462,7 +478,7 @@ void app_main()
 			shift_reg_write_bit_16(&sr_imu, 12, 1);
 		}
 
-		if(fix_ == 0)
+		if(fix_1 == 0 || fix_2 == 0)
 		{
 			shift_reg_write_bit_16(&sr_imu, 8, 0);
 		}
