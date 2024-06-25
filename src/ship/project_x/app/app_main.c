@@ -325,6 +325,9 @@ void app_main()
 		gps_get_coords(&gps2, &cookie2, &lat2, &lon2, &alt2, &fix_2);
 		gps_get_time(&gps1, &cookie1, &gps_time_s1, &gps_time_us1);
 		gps_get_time(&gps2, &cookie2, &gps_time_s2, &gps_time_us2);
+		pack_atgm.pack.lat = lat2;
+		pack_atgm.pack.lon = lon2;
+		pack_atgm.pack.height = alt2;
 		pack_NEO6M.pack.lat = lat1;
 		pack_NEO6M.pack.lon = lon1;
 		pack_NEO6M.pack.height = alt1;
