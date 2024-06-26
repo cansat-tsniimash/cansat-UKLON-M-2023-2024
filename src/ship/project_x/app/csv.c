@@ -56,8 +56,8 @@ uint16_t sd_parse_to_bytes_pack_NEO6M(char *buffer, packet_NEO6M_t *packet_NEO6M
 	memset(buffer, 0, 300);
 	uint16_t num_written = snprintf(
 			buffer, 300,
-			"%d;%d;%ld;%f;%f;%f;%d;%d\n",
-			packet_NEO6M->flag, packet_NEO6M->num, packet_NEO6M->time, packet_NEO6M->lat, packet_NEO6M->lon, packet_NEO6M->height, packet_NEO6M->fix, packet_NEO6M->crc);
+			"%d;%d;%ld;%f;%f;%f;%d;%d;%d\n",
+			packet_NEO6M->flag, packet_NEO6M->num, packet_NEO6M->time, packet_NEO6M->lat, packet_NEO6M->lon, packet_NEO6M->height, packet_NEO6M->cookie, packet_NEO6M->fix, packet_NEO6M->crc);
 	return num_written;
 }
 
@@ -66,8 +66,8 @@ uint16_t sd_parse_to_bytes_pack_atgm(char *buffer, packet_atgm_t *packet_atgm)
 	memset(buffer, 0, 300);
 	uint16_t num_written = snprintf(
 			buffer, 300,
-			"%d;%d;%ld;%f;%f;%f;%d;%d;%d\n",
-			packet_atgm->flag, packet_atgm->num, packet_atgm->time, packet_atgm->lat, packet_atgm->lon, packet_atgm->height, packet_atgm->fix, packet_atgm->DS_temp, packet_atgm->crc);
+			"%d;%d;%ld;%f;%f;%f;%d;%d;%d;%d\n",
+			packet_atgm->flag, packet_atgm->num, packet_atgm->time, packet_atgm->lat, packet_atgm->lon, packet_atgm->height, packet_atgm->cookie, packet_atgm->fix, packet_atgm->DS_temp, packet_atgm->crc);
 	return num_written;
 }
 

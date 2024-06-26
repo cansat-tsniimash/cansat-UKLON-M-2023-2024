@@ -325,6 +325,8 @@ void app_main()
 		gps_get_coords(&gps2, &cookie2, &lat2, &lon2, &alt2, &fix_2);
 		gps_get_time(&gps1, &cookie1, &gps_time_s1, &gps_time_us1);
 		gps_get_time(&gps2, &cookie2, &gps_time_s2, &gps_time_us2);
+		pack_atgm.pack.cookie = cookie2;
+		pack_NEO6M.pack.cookie = cookie1;
 		pack_atgm.pack.lat = lat2;
 		pack_atgm.pack.lon = lon2;
 		pack_atgm.pack.height = alt2;
@@ -549,9 +551,9 @@ void app_main()
 				res_MICS = f_open(&MICSFile, "MICS.csv", FA_WRITE | FA_OPEN_APPEND);
 				f_puts("flag; num; time; CO; NO2; NH3; pres; hum; temp; crc\n", &MICSFile);
 				res_NEO6M = f_open(&NEO6MFile, "NEO6M.csv", FA_WRITE | FA_OPEN_APPEND);
-				f_puts("flag; num; time; lat; lon; height; fix; crc\n", &NEO6MFile);
+				f_puts("flag; num; time; lat; lon; height; cookie; fix; crc\n", &NEO6MFile);
 				res_atgm = f_open(&atgmFile, "atgm.csv", FA_WRITE | FA_OPEN_APPEND);
-				f_puts("flag; num; time; lat; lon; height; fix; DS_temp; crc\n", &atgmFile);
+				f_puts("flag; num; time; lat; lon; height; cookie; fix; DS_temp; crc\n", &atgmFile);
 				res_imu = f_open(&imuFile, "imu.csv", FA_WRITE | FA_OPEN_APPEND);
 				f_puts("flag; num; time; accl0; accl1; accl2; gyr0; gyr1; gyr2; mag0; mag1; mag2; lux; crc\n", &imuFile);
 			}

@@ -56,6 +56,7 @@ typedef struct
 	float lat;/*широта*/
 	float lon;/*долгота*/
 	float height;/*высота*/
+	uint8_t cookie;
 	uint8_t fix;
 	int16_t DS_temp;
 	uint16_t crc;
@@ -76,6 +77,7 @@ typedef struct
 	float lat;/*широта*/
 	float lon;/*долгота*/
 	float height;/*высота*/
+	uint8_t cookie;
 	uint8_t fix;
 	uint16_t crc;
 } packet_NEO6M_t;
