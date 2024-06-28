@@ -545,7 +545,7 @@ void app_main()
 				res_org = f_open(&orgFile, "org.csv", FA_WRITE | FA_OPEN_APPEND);
 				f_puts("flag; id; time; temp; pres; accl0;  accl1;  accl2; crc\n", &orgFile);
 				res_GY25 = f_open(&GY25File, "GY25.csv", FA_WRITE | FA_OPEN_APPEND);
-				f_puts("flag; num; time; roll; pitch; yaw; pres; temp; crc\n", &GY25File);
+				f_puts("flag; num; time; roll; pitch; yaw; quatr0; quatr1; quatr2; quatr3; pres; temp; crc\n", &GY25File);
 				res_GY25_imu = f_open(&GY25imuFile, "GY25_imu.csv", FA_WRITE | FA_OPEN_APPEND);
 				f_puts("flag; num; time; accl0;  accl1;  accl2; gyr0; gyr1; gyr2; mag0; mag1; mag2; acc_range; gyr_range; mag_range; crc\n", &GY25imuFile);
 				res_MICS = f_open(&MICSFile, "MICS.csv", FA_WRITE | FA_OPEN_APPEND);
@@ -555,7 +555,7 @@ void app_main()
 				res_atgm = f_open(&atgmFile, "atgm.csv", FA_WRITE | FA_OPEN_APPEND);
 				f_puts("flag; num; time; lat; lon; height; cookie; fix; DS_temp; crc\n", &atgmFile);
 				res_imu = f_open(&imuFile, "imu.csv", FA_WRITE | FA_OPEN_APPEND);
-				f_puts("flag; num; time; accl0; accl1; accl2; gyr0; gyr1; gyr2; mag0; mag1; mag2; lux; crc\n", &imuFile);
+				f_puts("flag; num; time; accl0; accl1; accl2; gyr0; gyr1; gyr2; mag0; mag1; mag2; state; lux; crc\n", &imuFile);
 			}
 			else
 			{
