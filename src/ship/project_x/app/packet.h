@@ -98,7 +98,7 @@ typedef struct
 	float NO2;
 	float NH3;
 	uint32_t pres; /*давление*/
-	uint8_t hum; /*влажность*/
+	uint16_t hum; /*влажность*/
 	int16_t temp; /*температура*/
 	uint16_t crc;
 } packet_MICS_t;
