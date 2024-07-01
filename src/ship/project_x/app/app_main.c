@@ -406,10 +406,6 @@ void app_main()
 		case STATE_INIT:
 			if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET)
 			{
-				if(wait_time == 0)
-				{
-					wait_time = HAL_GetTick();
-				}
 				if (HAL_GetTick() >= wait_time + 2000)
 				{
 					machine_state_now = STATE_BEFORE_FLIGHT;
@@ -423,20 +419,24 @@ void app_main()
 				num_light_take += 1;
 				our_light += lux;
 			}
+			else wait_time = HAL_GetTick();
 			break;
 		case STATE_BEFORE_FLIGHT:
 			if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_RESET){
-				if(wait_time == 0)
-				{
-					wait_time = HAL_GetTick();
-				}
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
 				if (HAL_GetTick() >= wait_time + 5000){
 					machine_state_now = STATE_ROCKET;
+					HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET);
 					shift_reg_write_bit_16(&sr_imu, 9, 0);
 					shift_reg_write_bit_16(&sr_imu, 10, 0);
 					shift_reg_write_bit_16(&sr_imu, 11, 1);
 					break;
 				}
+			}
+			else
+			{
+				wait_time = HAL_GetTick();
+				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET);
 			}
 			break;
 		case STATE_ROCKET:
